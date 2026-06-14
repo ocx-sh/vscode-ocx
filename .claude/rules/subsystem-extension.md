@@ -15,9 +15,11 @@ How this extension is actually wired together. Architecture rationale lives in `
 import * as vscode from "vscode";
 
 export function activate(context: vscode.ExtensionContext): void {
+  // Representative command. The real activate() also builds services
+  // (EnvManager, status bar) and returns an OcxApi — see src/extension.ts.
   const disposable = vscode.commands.registerCommand(
-    "ocx.helloWorld",
-    () => { vscode.window.showInformationMessage("Hello from OCX"); },
+    "ocx.reload",
+    () => { /* recompute + re-apply the OCX environment */ },
   );
   context.subscriptions.push(disposable);
 }
@@ -38,7 +40,7 @@ export function deactivate(): void {
 ```jsonc
 "contributes": {
   "commands": [
-    { "command": "ocx.helloWorld", "title": "OCX: Hello World" }
+    { "command": "ocx.reload", "title": "Reload Environment", "category": "OCX" }
   ]
 }
 ```

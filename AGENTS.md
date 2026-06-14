@@ -14,8 +14,8 @@ Read these files in order. They are the **single source of truth** — do not
 rely on anything summarized in `AGENTS.md` alone.
 
 1. **`CLAUDE.md`** (repo root) — what this extension is, current state
-   (Hello-World bootstrap), npm build/test commands, architecture, commit
-   conventions, the "never push to remote" rule. Start here.
+   (environment injection shipped), npm build/test commands, architecture,
+   commit conventions, the "never push to remote" rule. Start here.
 2. **`.claude/rules.md`** — the rule catalog. Scan it before planning,
    research, or any architectural decision.
 3. **`.claude/rules/product-tech-strategy.md`** — golden-path technology

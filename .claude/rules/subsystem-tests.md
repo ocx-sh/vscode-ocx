@@ -47,11 +47,11 @@ import * as assert from "node:assert";
 import * as vscode from "vscode";
 
 suite("Extension Test Suite", () => {
-  test("activates and registers helloWorld command", async () => {
+  test("activates and registers the reload command", async () => {
     const ext = vscode.extensions.getExtension("ocx-sh.ocx");
     await ext?.activate();
     const cmds = await vscode.commands.getCommands(true);
-    assert.ok(cmds.includes("ocx.helloWorld"));
+    assert.ok(cmds.includes("ocx.reload"));
   });
 });
 ```

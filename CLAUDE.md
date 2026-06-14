@@ -4,19 +4,22 @@ Guide Claude Code (claude.ai/code) in this repo.
 
 ## What is this
 
-The **OCX VS Code extension** — a VS Code extension (binary id TBD) that
-surfaces [OCX](https://github.com/ocx-sh/ocx) inside the editor. OCX is an
+The **OCX VS Code extension** (`ocx-sh.ocx`) surfaces
+[OCX](https://github.com/ocx-sh/ocx) inside the editor. OCX is an
 OCI-registry-backed binary package manager (Rust CLI `ocx`, configs
-`ocx.toml` / `ocx.lock`). This extension will eventually help authors edit
-those files, inspect packages, and run OCX commands — but that integration is
-**out of scope right now**.
+`ocx.toml` / `ocx.lock`). The extension composes the project environment via
+the `ocx` CLI and injects it into the editor; richer `ocx.toml` authoring,
+package browsing, and CLI task running are still planned.
 
 ## Current State
 
-**Hello-World bootstrap.** TypeScript extension scaffolded from the standard
-`yo code` template: a single command, a smoke test, esbuild bundling. No OCX
-features yet. APIs/commands/manifest are unstable and will be reshaped freely
-as the extension grows.
+**Environment injection shipped.** Activates on a workspace `ocx.toml`, shells
+out to `ocx env`, and injects the composed `PATH`/vars into the extension host
+(always) and — opt-in — integrated terminals (`ocx.env.applyToTerminals`,
+default off). Ships five commands (reload, reset, restartExtensions, showOutput,
+init), a status bar item, file-watch reload, workspace-trust gating, and
+`ocx.toml` schema validation. Planned next: `ocx.toml`/`ocx.lock` IntelliSense,
+CLI task running, package/version browsing, status-bar active versions.
 
 ## Rule Catalog
 
