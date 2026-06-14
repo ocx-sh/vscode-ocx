@@ -1,10 +1,14 @@
 name: Release
 
-# Publishing is INERT until the relevant secrets are configured:
-#   - VSCE_PAT  → VS Code Marketplace (vsce)
-#   - OVSX_PAT  → Open VSX Registry (ovsx)
-# Without them, the workflow still builds, packages, and attaches the .vsix to a
-# GitHub Release; the marketplace steps are skipped.
+# Publishing is INERT until the relevant identity/secrets are configured:
+#   - VS Code Marketplace → Microsoft Entra (federated OIDC, no PAT). Requires
+#     repo secrets AZURE_CLIENT_ID + AZURE_TENANT_ID for an Entra app
+#     registration whose GitHub federated credential trusts
+#     subject `repo:ocx-sh/vscode-ocx:environment:release`, and which is added
+#     as a member of the `ocx-sh` Marketplace publisher.
+#   - Open VSX → OVSX_PAT secret.
+# Without them, the workflow still builds, tests, packages, and attaches the
+# .vsix to a GitHub Release; the marketplace publish steps are skipped.
 
 on:
   push:
@@ -12,20 +16,26 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write # create the GitHub Release / attach the .vsix
+  id-token: write # mint the OIDC token for Entra federated auth
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    # The `release` environment fixes the OIDC subject to
+    # `repo:ocx-sh/vscode-ocx:environment:release` so it matches the Entra
+    # app's federated credential.
+    environment: release
     # Job-level env so the secret-gating `if:` on the publish steps can read it.
     # (A step's own `env:` block is not visible to that step's `if:` condition.)
     env:
-      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       OVSX_PAT: ${{ secrets.OVSX_PAT }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
@@ -42,14 +52,22 @@ jobs:
         run: npm run package
 
       - name: Attach VSIX to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: '*.vsix'
           generate_release_notes: true
 
+      - name: Azure login (Entra federated)
+        if: env.AZURE_CLIENT_ID != ''
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
       - name: Publish to VS Code Marketplace
-        if: env.VSCE_PAT != ''
-        run: npx --yes @vscode/vsce publish --no-dependencies --packagePath *.vsix
+        if: env.AZURE_CLIENT_ID != ''
+        run: npx --yes @vscode/vsce publish --no-dependencies --packagePath *.vsix --azure-credential
 
       - name: Publish to Open VSX
         if: env.OVSX_PAT != ''
