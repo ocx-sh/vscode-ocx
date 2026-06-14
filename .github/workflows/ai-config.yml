@@ -1,0 +1,41 @@
+name: AI config
+
+# Validates the .claude/ AI-assistant configuration: structural tests over
+# rules/agents/skills + an offline Markdown link check.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.claude/**'
+      - 'CLAUDE.md'
+      - 'AGENTS.md'
+  pull_request:
+    paths:
+      - '.claude/**'
+      - 'CLAUDE.md'
+      - 'AGENTS.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Structural tests
+        run: uv run --with pytest --with pyyaml pytest .claude/tests/test_ai_config.py -v
+
+      - name: Markdown link check (offline)
+        uses: lycheeverse/lychee-action@v2
+        with:
+          # Templates are stencils containing intentional placeholder paths
+          # (e.g. `research_[topic].md`), so they are excluded from link checking.
+          args: --offline --no-progress --exclude-path '.claude/templates' 'CLAUDE.md' 'AGENTS.md' '.claude/**/*.md'
+          fail: true

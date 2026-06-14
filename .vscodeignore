@@ -1,0 +1,27 @@
+# Everything is excluded except the bundled `dist/` output and the metadata
+# files vsce includes by default (package.json, README, CHANGELOG, LICENSE).
+.vscode/**
+.vscode-test/**
+.vscode-test.mjs
+.github/**
+.claude/**
+.serena/**
+src/**
+out/**
+node_modules/**
+
+esbuild.js
+eslint.config.mjs
+tsconfig.json
+.prettierrc
+.npmrc
+.gitignore
+.editorconfig
+
+AGENTS.md
+CLAUDE.md
+.mcp.json
+
+**/*.ts
+**/*.map
+**/.DS_Store

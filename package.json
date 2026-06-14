@@ -1,0 +1,69 @@
+{
+  "name": "ocx",
+  "displayName": "OCX",
+  "description": "VS Code support for OCX — the OCI-registry-backed binary package manager.",
+  "version": "0.0.1",
+  "publisher": "ocx-sh",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.96.0",
+    "node": ">=20"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "ocx",
+    "oci",
+    "package-manager"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ocx-sh/vscode-ocx.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ocx-sh/vscode-ocx/issues"
+  },
+  "homepage": "https://github.com/ocx-sh/vscode-ocx#readme",
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "ocx.helloWorld",
+        "title": "Hello World",
+        "category": "OCX"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build:prod",
+    "build": "node esbuild.js",
+    "build:prod": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run lint && npm run check-types && npm run build",
+    "compile-tests": "tsc -p . --outDir out",
+    "pretest": "npm run compile-tests && npm run build && npm run lint",
+    "test": "vscode-test",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.19.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.24.2",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "ovsx": "^0.10.1",
+    "prettier": "3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1"
+  }
+}

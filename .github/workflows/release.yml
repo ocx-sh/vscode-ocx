@@ -1,0 +1,56 @@
+name: Release
+
+# Publishing is INERT until the relevant secrets are configured:
+#   - VSCE_PAT  → VS Code Marketplace (vsce)
+#   - OVSX_PAT  → Open VSX Registry (ovsx)
+# Without them, the workflow still builds, packages, and attaches the .vsix to a
+# GitHub Release; the marketplace steps are skipped.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # Job-level env so the secret-gating `if:` on the publish steps can read it.
+    # (A step's own `env:` block is not visible to that step's `if:` condition.)
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Verify (lint + types + build)
+        run: npm run check
+
+      - name: Test (headless)
+        run: xvfb-run -a npm test
+
+      - name: Package VSIX
+        run: npm run package
+
+      - name: Attach VSIX to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: '*.vsix'
+          generate_release_notes: true
+
+      - name: Publish to VS Code Marketplace
+        if: env.VSCE_PAT != ''
+        run: npx --yes @vscode/vsce publish --no-dependencies --packagePath *.vsix
+
+      - name: Publish to Open VSX
+        if: env.OVSX_PAT != ''
+        run: npx --yes ovsx publish *.vsix --pat "$OVSX_PAT"

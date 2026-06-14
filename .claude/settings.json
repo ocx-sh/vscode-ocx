@@ -1,0 +1,92 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Edit",
+      "Write",
+      "WebSearch",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "mcp__ide__getDiagnostics",
+      "mcp__ide__executeCode"
+    ],
+    "deny": [
+      "// === Destructive File Operations ===",
+      "Bash(rm -rf:*)",
+      "Bash(rm -r:*)",
+      "Bash(sudo:*)",
+
+      "// === Network: Force WebFetch for web access (prompt injection containment) ===",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+
+      "// === Git Destructive Operations (git push to main handled by pre_push_main_blocker hook) ===",
+      "Bash(git push --force:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean -f:*)",
+
+      "// === Dangerous Permission Changes ===",
+      "Bash(chmod 777:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run \"$CLAUDE_PROJECT_DIR/.claude/hooks/session_start_loader.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre_tool_use_validator.py\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre_commit_verification.py\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "uv run \"$CLAUDE_PROJECT_DIR/.claude/hooks/conventional_commit_validator.py\"",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "uv run \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre_push_main_blocker.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run \"$CLAUDE_PROJECT_DIR/.claude/hooks/user_prompt_router.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
