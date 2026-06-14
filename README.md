@@ -15,8 +15,9 @@ VS Code support for [OCX](https://github.com/ocx-sh/ocx) — the OCI-registry-ba
 Open a folder that contains an `ocx.toml` and the extension composes the project
 environment with the `ocx` CLI and injects it into VS Code:
 
-- **Terminals & tasks** — new integrated terminals get the OCX `PATH` (the tools
-  declared in `ocx.toml`). Toggle with `ocx.env.applyToTerminals`.
+- **Terminals & tasks** *(opt-in)* — enable `ocx.env.applyToTerminals` (off by
+  default) and **newly opened** integrated terminals get the OCX `PATH` (the
+  tools declared in `ocx.toml`).
 - **Extensions & language servers** — the `PATH` is also injected into the
   extension host's `process.env`, so language servers and other extensions can
   find OCX-managed tools (node, go-task, …). Because already-running extensions
@@ -63,7 +64,7 @@ npm test           # integration tests (downloads VS Code)
 ```
 
 Press <kbd>F5</kbd> in VS Code to launch the Extension Development Host, then run
-**OCX: Hello World** from the Command Palette.
+**OCX: Reload Environment** from the Command Palette.
 
 ### Useful scripts
 
