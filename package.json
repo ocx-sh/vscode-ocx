@@ -25,13 +25,93 @@
     "url": "https://github.com/ocx-sh/vscode-ocx/issues"
   },
   "homepage": "https://github.com/ocx-sh/vscode-ocx#readme",
+  "icon": "assets/logo-128.png",
   "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:**/ocx.toml"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "OCX injects PATH from ocx.toml; environment loading requires a trusted workspace.",
+      "restrictedConfigurations": [
+        "ocx.path.executable",
+        "ocx.extraEnv"
+      ]
+    }
+  },
   "contributes": {
     "commands": [
       {
-        "command": "ocx.helloWorld",
-        "title": "Hello World",
+        "command": "ocx.reload",
+        "title": "Reload Environment",
         "category": "OCX"
+      },
+      {
+        "command": "ocx.reset",
+        "title": "Reset Environment",
+        "category": "OCX"
+      },
+      {
+        "command": "ocx.restartExtensions",
+        "title": "Restart Extensions",
+        "category": "OCX"
+      },
+      {
+        "command": "ocx.showOutput",
+        "title": "Show Output",
+        "category": "OCX"
+      },
+      {
+        "command": "ocx.init",
+        "title": "Initialize ocx.toml",
+        "category": "OCX"
+      }
+    ],
+    "configuration": {
+      "title": "OCX",
+      "properties": {
+        "ocx.path.executable": {
+          "type": "string",
+          "default": "ocx",
+          "scope": "machine-overridable",
+          "markdownDescription": "Path to (or name of) the `ocx` executable. Resolved against `PATH` when not absolute."
+        },
+        "ocx.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable loading the OCX environment into the editor."
+        },
+        "ocx.watchForChanges": {
+          "type": "boolean",
+          "default": true,
+          "description": "Reload the environment when ocx.toml or ocx.lock change."
+        },
+        "ocx.restart.automatic": {
+          "type": "boolean",
+          "default": false,
+          "description": "Restart the extension host automatically when the environment changes, instead of prompting."
+        },
+        "ocx.env.applyToTerminals": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Inject the OCX environment into integrated terminals and tasks. Disable if you already source OCX via direnv (`.envrc`) to avoid duplicate `PATH` entries."
+        },
+        "ocx.extraEnv": {
+          "type": "object",
+          "default": {},
+          "scope": "machine-overridable",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "markdownDescription": "Extra environment variables passed to the `ocx` child process (e.g. `OCX_HOME`, registry credentials)."
+        }
+      }
+    },
+    "tomlValidation": [
+      {
+        "fileMatch": "ocx.toml",
+        "url": "./schemas/ocx.toml.schema.json"
       }
     ]
   },
@@ -58,11 +138,13 @@
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1",
     "@vscode/vsce": "^3.2.1",
+    "ajv": "^8.17.1",
     "esbuild": "^0.24.2",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
     "ovsx": "^0.10.1",
     "prettier": "3.4.2",
+    "smol-toml": "^1.3.1",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.1"
   }

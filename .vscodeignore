@@ -22,6 +22,14 @@ AGENTS.md
 CLAUDE.md
 .mcp.json
 
+# Repo dev tooling / strays — not part of the shipped extension.
+ocx.toml
+ocx.lock
+.envrc
+.pytest_cache/**
+
 **/*.ts
 **/*.map
 **/.DS_Store
+# SVG is repo branding only — Marketplace forbids SVG, and the PNG icon ships instead.
+**/*.svg

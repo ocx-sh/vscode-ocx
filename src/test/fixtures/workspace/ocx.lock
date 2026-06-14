@@ -1,0 +1,16 @@
+[metadata]
+lock_version = 1
+declaration_hash_version = 1
+declaration_hash = "sha256:257609365fad6a7b380e40a3925662ff889f4eb1c05153a3968188e2a185b6e7"
+generated_by = "ocx 0.3.7"
+generated_at = "2026-06-14T12:31:26Z"
+
+[[tool]]
+name = "go-task"
+group = "default"
+pinned = "ocx.sh/go-task@sha256:fcfad89eae0672b309b5bcc7bb25e592cab244296dd9885233631b95da1ee41c"
+
+[[tool]]
+name = "nodejs"
+group = "default"
+pinned = "ocx.sh/nodejs@sha256:5f0b5f190035ba11de413c37d7ca1ff6aef8dab20d1b4d2868ee5d68c831ca40"
