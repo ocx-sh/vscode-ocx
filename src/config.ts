@@ -33,7 +33,7 @@ export function readConfig(scope?: vscode.ConfigurationScope): OcxConfig {
     enable: c.get<boolean>('enable', true),
     watchForChanges: c.get<boolean>('watchForChanges', true),
     restartAutomatic: c.get<boolean>('restart.automatic', false),
-    applyToTerminals: c.get<boolean>('env.applyToTerminals', true),
+    applyToTerminals: c.get<boolean>('env.applyToTerminals', false),
     extraEnv: c.get<Record<string, string>>('extraEnv', {}),
   };
 }

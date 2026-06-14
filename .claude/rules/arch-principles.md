@@ -45,11 +45,11 @@ Dependency direction: handlers → services → adapters → `vscode`. Domain/se
 
 ## ADR Index
 
-Architecture Decision Records live in `.claude/artifacts/adr_*.md`. Read the relevant ADR before making a decision in the same domain. None exist yet (Hello-World bootstrap); seed the table as decisions are recorded.
+Architecture Decision Records live in `.claude/artifacts/adr_*.md`. Read the relevant ADR before making a decision in the same domain. Add a row per ADR as decisions are recorded.
 
 | ADR | Decision |
 |-----|----------|
-| _(none yet)_ | _Add a row when the first ADR lands; mirror the format in `meta-ai-config.md`._ |
+| [`adr_terminal_env_inheritance.md`](../artifacts/adr_terminal_env_inheritance.md) | Terminal env injection is **opt-in** (`ocx.env.applyToTerminals`, default `false`); no direnv detection — OCX will own a terminal hook. |
 
 ## Anti-Patterns
 

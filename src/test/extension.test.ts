@@ -46,6 +46,12 @@ async function setExecutable(value: string | undefined): Promise<void> {
     .update('path.executable', value, vscode.ConfigurationTarget.Global);
 }
 
+async function setApplyToTerminals(value: boolean | undefined): Promise<void> {
+  await vscode.workspace
+    .getConfiguration('ocx')
+    .update('env.applyToTerminals', value, vscode.ConfigurationTarget.Global);
+}
+
 let api: OcxApi;
 let stubPath: string;
 let stubBadPath: string;
@@ -86,7 +92,7 @@ suite('OCX extension', () => {
     assert.ok(!commands.includes('ocx.helloWorld'), 'ocx.helloWorld should be removed');
   });
 
-  test('reload injects the composed env into process.env and terminals', async function () {
+  test('reload injects env into process.env; terminals untouched when off (default)', async function () {
     if (isWindows) {
       this.skip();
     }
@@ -95,13 +101,39 @@ suite('OCX extension', () => {
     assert.ok(process.env.PATH?.includes(STUB_PATH_DIR), 'PATH should contain the stub dir');
     assert.strictEqual(process.env[STUB_SCALAR], 'scalar-value');
 
-    const pathMutator = api.environmentVariableCollection.get('PATH');
-    assert.ok(pathMutator, 'a PATH terminal mutator should be set');
-    assert.ok(pathMutator.value.includes(STUB_PATH_DIR));
-    assert.ok(
-      api.environmentVariableCollection.get(STUB_SCALAR),
-      'a scalar terminal mutator should be set',
+    // applyToTerminals is off by default: the host env is injected, but no
+    // terminal mutators are set.
+    assert.strictEqual(
+      api.environmentVariableCollection.get('PATH'),
+      undefined,
+      'no PATH terminal mutator should be set when applyToTerminals is off',
     );
+    assert.strictEqual(
+      api.environmentVariableCollection.get(STUB_SCALAR),
+      undefined,
+      'no scalar terminal mutator should be set when applyToTerminals is off',
+    );
+  });
+
+  test('applyToTerminals=true injects terminal mutators', async function () {
+    if (isWindows) {
+      this.skip();
+    }
+    await setApplyToTerminals(true);
+    try {
+      await api.reload();
+
+      const pathMutator = api.environmentVariableCollection.get('PATH');
+      assert.ok(pathMutator, 'a PATH terminal mutator should be set');
+      assert.ok(pathMutator.value.includes(STUB_PATH_DIR));
+      assert.ok(
+        api.environmentVariableCollection.get(STUB_SCALAR),
+        'a scalar terminal mutator should be set',
+      );
+    } finally {
+      await setApplyToTerminals(undefined);
+      api.reset();
+    }
   });
 
   test('reset restores the baseline env', async function () {
