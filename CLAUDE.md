@@ -13,14 +13,18 @@ package browsing, and CLI task running are still planned.
 
 ## Current State
 
-**Environment injection shipped.** Activates on a workspace `ocx.toml`, shells
-out to `ocx env`, and injects the composed `PATH`/vars into the extension host
-(always) and — opt-in — integrated terminals (`ocx.env.applyToTerminals`,
-default off). Ships five commands (reload, reset, restartExtensions, showOutput,
-init), a status bar item, file-watch reload, workspace-trust gating,
-`ocx.toml` schema validation, and a configurable group selector (`ocx.groups`,
-forwarded to `ocx env` as `--group`). Planned next: `ocx.toml`/`ocx.lock` IntelliSense,
-CLI task running, package/version browsing, status-bar active versions.
+**Environment injection + project-lifecycle commands shipped.** Activates on a
+workspace `ocx.toml`, shells out to `ocx env`, and injects the composed
+`PATH`/vars into the extension host (always) and — opt-in — integrated terminals
+(`ocx.env.applyToTerminals`, default off). Ships nine commands: environment
+(reload, reset, restartExtensions, showOutput, init) plus project-lifecycle
+subcommands that shell out to `ocx` (lock, pull, upgrade, clean). Also a status
+bar item, file-watch reload, workspace-trust gating, `ocx.toml` schema
+validation, and a configurable group selector (`ocx.groups`, forwarded to
+`ocx env`/`ocx pull` as `--group`). Toolchain binaries run via built-in `shell`
+tasks (no custom task type) once `ocx.env.applyToTerminals` is on. Planned next:
+`ocx.toml`/`ocx.lock` IntelliSense, package/version browsing, status-bar active
+versions.
 
 ## Rule Catalog
 
