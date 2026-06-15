@@ -16,7 +16,7 @@ OCX is an OCI-registry-backed binary package manager — a Rust CLI named `ocx` 
 
 ## Current State
 
-**Environment injection shipped.** The extension activates on a workspace `ocx.toml`, composes the project environment with the `ocx` CLI (`ocx env`), and injects it into the extension host's `process.env` (always) and — opt-in — integrated terminals/tasks (`ocx.env.applyToTerminals`, **default off**; OCX will own a terminal hook). It also ships five commands (reload, reset, restartExtensions, showOutput, init), a status-bar indicator, file-watch reload, workspace-trust gating, and `ocx.toml` schema validation. The capabilities under **Product Vision** below remain **roadmap, not present**.
+**Environment injection shipped.** The extension activates on a workspace `ocx.toml`, composes the project environment with the `ocx` CLI (`ocx env`), and injects it into the extension host's `process.env` (always) and — opt-in — integrated terminals/tasks (`ocx.env.applyToTerminals`, **default off**; OCX will own a terminal hook). It also ships five commands (reload, reset, restartExtensions, showOutput, init), a status-bar indicator, file-watch reload, workspace-trust gating, `ocx.toml` schema validation, and a configurable group selector (`ocx.groups`) that forwards `--group` to `ocx env` to compose a chosen set of tool groups. The capabilities under **Product Vision** below remain **roadmap, not present**.
 
 ## Product Vision — What It Will Do
 

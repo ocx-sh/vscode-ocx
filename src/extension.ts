@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 
 import { readConfig } from './config';
 import { EnvManager } from './environment';
-import { runEnv, runInit } from './ocx';
+import { isUnsupportedGroupFlag, runEnv, runInit } from './ocx';
 import { StatusBar } from './status';
 
 /**
@@ -59,7 +59,12 @@ export function activate(context: vscode.ExtensionContext): OcxApi {
     status.set({ kind: 'loading' });
     envManager.restore(); // baseline env for the child + idempotent re-apply
     const childEnv: NodeJS.ProcessEnv = { ...process.env, ...config.extraEnv };
-    const result = await runEnv({ executable: config.executable, projectToml, env: childEnv });
+    const result = await runEnv({
+      executable: config.executable,
+      projectToml,
+      groups: config.groups,
+      env: childEnv,
+    });
 
     switch (result.kind) {
       case 'not-found':
@@ -67,11 +72,20 @@ export function activate(context: vscode.ExtensionContext): OcxApi {
         output.appendLine(`[reload] ocx executable not found: ${config.executable}`);
         void notifyNotFound(config.executable);
         return;
-      case 'error':
+      case 'error': {
+        // When `ocx.groups` is set but the installed `ocx` rejects `--group`,
+        // the raw clap usage error is opaque — point the user at the cause.
+        const hint =
+          config.groups.length > 0 && isUnsupportedGroupFlag(result.message)
+            ? ' This `ocx` does not support `ocx env --group`; update `ocx` or clear the `ocx.groups` setting.'
+            : '';
         status.set({ kind: 'failed', message: result.message });
         output.appendLine(`[reload] ocx env failed: ${result.message}`);
-        void vscode.window.showErrorMessage(`OCX: failed to load environment. ${result.message}`);
+        void vscode.window.showErrorMessage(
+          `OCX: failed to load environment. ${result.message}${hint}`,
+        );
         return;
+      }
       case 'ok': {
         const { count, changed } = envManager.apply(result.entries, {
           applyToTerminals: config.applyToTerminals,

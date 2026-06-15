@@ -17,8 +17,9 @@ package browsing, and CLI task running are still planned.
 out to `ocx env`, and injects the composed `PATH`/vars into the extension host
 (always) and — opt-in — integrated terminals (`ocx.env.applyToTerminals`,
 default off). Ships five commands (reload, reset, restartExtensions, showOutput,
-init), a status bar item, file-watch reload, workspace-trust gating, and
-`ocx.toml` schema validation. Planned next: `ocx.toml`/`ocx.lock` IntelliSense,
+init), a status bar item, file-watch reload, workspace-trust gating,
+`ocx.toml` schema validation, and a configurable group selector (`ocx.groups`,
+forwarded to `ocx env` as `--group`). Planned next: `ocx.toml`/`ocx.lock` IntelliSense,
 CLI task running, package/version browsing, status-bar active versions.
 
 ## Rule Catalog

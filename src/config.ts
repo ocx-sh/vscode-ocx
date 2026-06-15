@@ -21,6 +21,12 @@ export interface OcxConfig {
   readonly restartAutomatic: boolean;
   /** Inject env into terminals/tasks too (`ocx.env.applyToTerminals`). */
   readonly applyToTerminals: boolean;
+  /**
+   * Tool groups to compose into the environment (`ocx.groups`), passed to
+   * `ocx env` as `--group`. Empty ⇒ the default group only. Normalized at read
+   * time: each entry trimmed, blanks dropped.
+   */
+  readonly groups: readonly string[];
   /** Extra env passed to the `ocx` child process (`ocx.extraEnv`). */
   readonly extraEnv: Readonly<Record<string, string>>;
 }
@@ -34,6 +40,16 @@ export function readConfig(scope?: vscode.ConfigurationScope): OcxConfig {
     watchForChanges: c.get<boolean>('watchForChanges', true),
     restartAutomatic: c.get<boolean>('restart.automatic', false),
     applyToTerminals: c.get<boolean>('env.applyToTerminals', false),
+    groups: normalizeGroups(c.get<string[]>('groups', [])),
     extraEnv: c.get<Record<string, string>>('extraEnv', {}),
   };
+}
+
+/**
+ * Sanitize the raw `ocx.groups` array at the trust boundary: trim each entry and
+ * drop blanks, so a stray empty/whitespace value never becomes an empty
+ * `--group ""` token (which the CLI rejects as an empty group segment).
+ */
+function normalizeGroups(raw: readonly string[]): readonly string[] {
+  return raw.map((group) => group.trim()).filter((group) => group.length > 0);
 }

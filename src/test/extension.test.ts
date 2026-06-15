@@ -1,5 +1,5 @@
 import * as assert from 'node:assert';
-import { chmodSync, writeFileSync } from 'node:fs';
+import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 
@@ -40,6 +40,20 @@ function writeStub(name: string, json: string): string {
   return stubPath;
 }
 
+/**
+ * A stub that records its argv (one token per line) to `argsFile` before
+ * emitting `json`, so a test can assert exactly which arguments reached `ocx`.
+ */
+function writeArgsStub(name: string, json: string, argsFile: string): string {
+  const stubPath = path.join(tmpdir(), name);
+  writeFileSync(
+    stubPath,
+    `#!/bin/sh\nprintf '%s\\n' "$@" > '${argsFile}'\ncat <<'OCXJSON'\n${json}\nOCXJSON\n`,
+  );
+  chmodSync(stubPath, 0o755);
+  return stubPath;
+}
+
 async function setExecutable(value: string | undefined): Promise<void> {
   await vscode.workspace
     .getConfiguration('ocx')
@@ -50,6 +64,12 @@ async function setApplyToTerminals(value: boolean | undefined): Promise<void> {
   await vscode.workspace
     .getConfiguration('ocx')
     .update('env.applyToTerminals', value, vscode.ConfigurationTarget.Global);
+}
+
+async function setGroups(value: readonly string[] | undefined): Promise<void> {
+  await vscode.workspace
+    .getConfiguration('ocx')
+    .update('groups', value, vscode.ConfigurationTarget.Global);
 }
 
 let api: OcxApi;
@@ -167,5 +187,52 @@ suite('OCX extension', () => {
     );
 
     await setExecutable(stubPath);
+  });
+
+  test('ocx.groups reach the ocx env invocation (normalized, after env)', async function () {
+    if (isWindows) {
+      this.skip();
+    }
+    api.reset();
+    const argsFile = path.join(tmpdir(), `ocx-args-${process.pid}`);
+    const argStub = writeArgsStub(`ocx-stub-args-${process.pid}.sh`, STUB_JSON, argsFile);
+    await setExecutable(argStub);
+    // A blank entry (dropped) and a padded entry ('  ci  ' → 'ci') prove both
+    // halves of boundary normalization: blank-drop and trim-but-keep.
+    await setGroups(['  ', '  ci  ', 'lint']);
+    try {
+      await api.reload();
+
+      const recorded = readFileSync(argsFile, 'utf8').trim().split('\n');
+      // Global flags precede the subcommand; the project path is discovered.
+      assert.deepStrictEqual(recorded.slice(0, 3), ['--format', 'json', '--project']);
+      assert.ok(recorded[3]?.endsWith('ocx.toml'), 'third flag value is the project ocx.toml');
+      // Group selectors follow `env`, one --group per entry, blanks dropped.
+      assert.deepStrictEqual(recorded.slice(4), ['env', '--group', 'ci', '--group', 'lint']);
+    } finally {
+      await setGroups(undefined);
+      await setExecutable(stubPath);
+      api.reset();
+    }
+  });
+
+  test('no ocx.groups → no --group argument', async function () {
+    if (isWindows) {
+      this.skip();
+    }
+    api.reset();
+    const argsFile = path.join(tmpdir(), `ocx-args-empty-${process.pid}`);
+    const argStub = writeArgsStub(`ocx-stub-args-empty-${process.pid}.sh`, STUB_JSON, argsFile);
+    await setExecutable(argStub);
+    try {
+      await api.reload();
+
+      const recorded = readFileSync(argsFile, 'utf8').trim().split('\n');
+      assert.ok(!recorded.includes('--group'), 'no --group token when ocx.groups is empty');
+      assert.strictEqual(recorded.at(-1), 'env', 'env is the final token with no groups');
+    } finally {
+      await setExecutable(stubPath);
+      api.reset();
+    }
   });
 });
