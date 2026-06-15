@@ -86,6 +86,23 @@ export function computeEnvPlan(
 
 const CACHE_KEY = 'ocx.lastAppliedEnv';
 
+/**
+ * Canonical fingerprint of a composed environment, deciding whether a reload
+ * actually changed anything (→ whether to prompt for a restart).
+ *
+ * `ocx --format json env` may re-emit the SAME entries in a different array order
+ * between runs (map-iteration order for `constant` entries), so a raw
+ * `JSON.stringify(entries)` flips spuriously on a mere `ocx.toml`/`ocx.lock` touch.
+ * Entries for DIFFERENT keys never interact in {@link computeEnvPlan}, so cross-key
+ * order is inert — sort by key to neutralize it. The sort is STABLE (ES2019+, V8
+ * extension host), so the relative order of entries sharing a key — which IS
+ * meaningful (prepend sequence for `type:"path"`) — is preserved.
+ */
+export function envFingerprint(entries: readonly EnvEntry[]): string {
+  const canonical = [...entries].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  return JSON.stringify(canonical);
+}
+
 const MUTATOR_OPTIONS: vscode.EnvironmentVariableMutatorOptions = {
   applyAtProcessCreation: true,
   applyAtShellIntegration: true,
@@ -171,7 +188,7 @@ export class EnvManager {
   }
 
   private updateCache(entries: readonly EnvEntry[]): boolean {
-    const snapshot = JSON.stringify(entries);
+    const snapshot = envFingerprint(entries);
     const previous = this.workspaceState.get<string>(CACHE_KEY);
     void this.workspaceState.update(CACHE_KEY, snapshot);
     return snapshot !== previous;

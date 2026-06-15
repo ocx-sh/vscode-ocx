@@ -2,7 +2,7 @@ import * as assert from 'node:assert';
 
 import * as vscode from 'vscode';
 
-import { computeEnvPlan, EnvManager } from '../environment';
+import { computeEnvPlan, EnvManager, envFingerprint } from '../environment';
 import type { EnvEntry } from '../ocx';
 
 // The exact JSON shape emitted by `ocx --format json env`.
@@ -81,6 +81,76 @@ suite('computeEnvPlan', () => {
       ':',
     );
     assert.strictEqual(plan.processOps.find((op) => op.key === 'K')?.value, '/dir:base');
+  });
+});
+
+suite('envFingerprint', () => {
+  test('cross-key reorder yields an equal fingerprint (the regression)', () => {
+    // Same logical env, different emission order — simulates ocx map-iteration
+    // order for `constant` entries. Must NOT register as a change.
+    const a: EnvEntry[] = [
+      { key: 'PATH', value: '/a', type: 'path' },
+      { key: 'PATH', value: '/b', type: 'path' },
+      { key: 'FOO', value: '1', type: 'constant' },
+    ];
+    const b: EnvEntry[] = [
+      { key: 'FOO', value: '1', type: 'constant' },
+      { key: 'PATH', value: '/a', type: 'path' },
+      { key: 'PATH', value: '/b', type: 'path' },
+    ];
+    assert.strictEqual(envFingerprint(a), envFingerprint(b));
+  });
+
+  test('intra-key (prepend) reorder is a real change', () => {
+    const a: EnvEntry[] = [
+      { key: 'PATH', value: '/a', type: 'path' },
+      { key: 'PATH', value: '/b', type: 'path' },
+    ];
+    const b: EnvEntry[] = [
+      { key: 'PATH', value: '/b', type: 'path' },
+      { key: 'PATH', value: '/a', type: 'path' },
+    ];
+    assert.notStrictEqual(envFingerprint(a), envFingerprint(b));
+  });
+
+  test('a value difference is a change', () => {
+    assert.notStrictEqual(
+      envFingerprint([{ key: 'FOO', value: '1', type: 'constant' }]),
+      envFingerprint([{ key: 'FOO', value: '2', type: 'constant' }]),
+    );
+  });
+
+  test('a type difference is a change', () => {
+    assert.notStrictEqual(
+      envFingerprint([{ key: 'K', value: 'v', type: 'path' }]),
+      envFingerprint([{ key: 'K', value: 'v', type: 'constant' }]),
+    );
+  });
+
+  test('same-key path/constant ordering is preserved (a real change)', () => {
+    const a: EnvEntry[] = [
+      { key: 'K', value: '/dir', type: 'path' },
+      { key: 'K', value: 'x', type: 'constant' },
+    ];
+    const b: EnvEntry[] = [
+      { key: 'K', value: 'x', type: 'constant' },
+      { key: 'K', value: '/dir', type: 'path' },
+    ];
+    assert.notStrictEqual(envFingerprint(a), envFingerprint(b));
+  });
+
+  test('duplicate identical entries are retained, not deduped', () => {
+    assert.notStrictEqual(
+      envFingerprint([
+        { key: 'PATH', value: '/a', type: 'path' },
+        { key: 'PATH', value: '/a', type: 'path' },
+      ]),
+      envFingerprint([{ key: 'PATH', value: '/a', type: 'path' }]),
+    );
+  });
+
+  test('empty entries fingerprint is deterministic', () => {
+    assert.strictEqual(envFingerprint([]), envFingerprint([]));
   });
 });
 
@@ -193,6 +263,74 @@ suite('EnvManager apply/reset (fakes)', () => {
     manager.apply([{ key: SCALAR, value: 'z', type: 'constant' }], { applyToTerminals: false });
     assert.strictEqual(collection.ops.length, 0);
     assert.strictEqual(process.env[SCALAR], 'z');
+
+    manager.reset();
+  });
+});
+
+suite('EnvManager changed detection (fakes)', () => {
+  const KEYS = ['PATH', 'OCX_UNIT_FOO', 'OCX_UNIT_BAR'] as const;
+  const saved = new Map<string, string | undefined>();
+
+  setup(() => {
+    for (const key of KEYS) {
+      saved.set(key, process.env[key]);
+    }
+  });
+
+  teardown(() => {
+    for (const [key, value] of saved) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+    saved.clear();
+  });
+
+  function newManager(): EnvManager {
+    return new EnvManager(
+      new FakeCollection() as unknown as vscode.GlobalEnvironmentVariableCollection,
+      new FakeMemento(),
+    );
+  }
+
+  test('cross-key reordered entries do not report a change (no spurious prompt)', () => {
+    const manager = newManager();
+    const original: EnvEntry[] = [
+      { key: 'PATH', value: '/unit-bin', type: 'path' },
+      { key: 'OCX_UNIT_FOO', value: '1', type: 'constant' },
+      { key: 'OCX_UNIT_BAR', value: '2', type: 'constant' },
+    ];
+    // Same logical env, permuted emission order (simulates ocx map iteration).
+    const reordered: EnvEntry[] = [
+      { key: 'OCX_UNIT_BAR', value: '2', type: 'constant' },
+      { key: 'PATH', value: '/unit-bin', type: 'path' },
+      { key: 'OCX_UNIT_FOO', value: '1', type: 'constant' },
+    ];
+
+    assert.strictEqual(manager.apply(original, { applyToTerminals: false }).changed, true);
+    assert.strictEqual(manager.apply(reordered, { applyToTerminals: false }).changed, false);
+
+    manager.reset();
+  });
+
+  test('a genuine value edit reports a change', () => {
+    const manager = newManager();
+
+    assert.strictEqual(
+      manager.apply([{ key: 'OCX_UNIT_FOO', value: '1', type: 'constant' }], {
+        applyToTerminals: false,
+      }).changed,
+      true,
+    );
+    assert.strictEqual(
+      manager.apply([{ key: 'OCX_UNIT_FOO', value: '2', type: 'constant' }], {
+        applyToTerminals: false,
+      }).changed,
+      true,
+    );
 
     manager.reset();
   });
