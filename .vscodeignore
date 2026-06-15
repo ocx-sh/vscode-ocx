@@ -20,6 +20,7 @@ tsconfig.json
 
 AGENTS.md
 CLAUDE.md
+CONTRIBUTING.md
 .mcp.json
 
 # Repo dev tooling / strays — not part of the shipped extension.
