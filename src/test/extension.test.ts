@@ -106,6 +106,10 @@ suite('OCX extension', () => {
       'ocx.restartExtensions',
       'ocx.showOutput',
       'ocx.init',
+      'ocx.lock',
+      'ocx.pull',
+      'ocx.upgrade',
+      'ocx.clean',
     ]) {
       assert.ok(commands.includes(id), `expected command ${id} to be registered`);
     }
@@ -230,6 +234,30 @@ suite('OCX extension', () => {
       const recorded = readFileSync(argsFile, 'utf8').trim().split('\n');
       assert.ok(!recorded.includes('--group'), 'no --group token when ocx.groups is empty');
       assert.strictEqual(recorded.at(-1), 'env', 'env is the final token with no groups');
+    } finally {
+      await setExecutable(stubPath);
+      api.reset();
+    }
+  });
+
+  // `clean` is the one project command that does NOT trigger a reload, so the
+  // args stub records only the clean invocation (no env call overwrites it).
+  test('ocx.clean runs the subcommand with --project before it', async function () {
+    if (isWindows) {
+      this.skip();
+    }
+    api.reset();
+    const argsFile = path.join(tmpdir(), `ocx-args-clean-${process.pid}`);
+    const argStub = writeArgsStub(`ocx-stub-clean-${process.pid}.sh`, STUB_JSON, argsFile);
+    await setExecutable(argStub);
+    try {
+      await vscode.commands.executeCommand('ocx.clean');
+
+      const recorded = readFileSync(argsFile, 'utf8').trim().split('\n');
+      assert.strictEqual(recorded[0], '--project', 'global --project precedes the subcommand');
+      assert.ok(recorded[1]?.endsWith('ocx.toml'), 'second token is the discovered project ocx.toml');
+      assert.strictEqual(recorded[2], 'clean', 'the subcommand follows the global flags');
+      assert.ok(!recorded.includes('--group'), 'clean never receives a --group selector');
     } finally {
       await setExecutable(stubPath);
       api.reset();

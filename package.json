@@ -2,7 +2,7 @@
   "name": "ocx",
   "displayName": "OCX",
   "description": "VS Code support for OCX — the OCI-registry-backed binary package manager.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "ocx-sh",
   "license": "Apache-2.0",
   "engines": {
@@ -65,6 +65,26 @@
       {
         "command": "ocx.init",
         "title": "Initialize ocx.toml",
+        "category": "OCX"
+      },
+      {
+        "command": "ocx.lock",
+        "title": "Resolve Lockfile",
+        "category": "OCX"
+      },
+      {
+        "command": "ocx.pull",
+        "title": "Pull Tools",
+        "category": "OCX"
+      },
+      {
+        "command": "ocx.upgrade",
+        "title": "Upgrade Tools",
+        "category": "OCX"
+      },
+      {
+        "command": "ocx.clean",
+        "title": "Clean Object Store",
         "category": "OCX"
       }
     ],

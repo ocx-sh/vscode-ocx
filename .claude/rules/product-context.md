@@ -16,16 +16,15 @@ OCX is an OCI-registry-backed binary package manager — a Rust CLI named `ocx` 
 
 ## Current State
 
-**Environment injection shipped.** The extension activates on a workspace `ocx.toml`, composes the project environment with the `ocx` CLI (`ocx env`), and injects it into the extension host's `process.env` (always) and — opt-in — integrated terminals/tasks (`ocx.env.applyToTerminals`, **default off**; OCX will own a terminal hook). It also ships five commands (reload, reset, restartExtensions, showOutput, init), a status-bar indicator, file-watch reload, workspace-trust gating, `ocx.toml` schema validation, and a configurable group selector (`ocx.groups`) that forwards `--group` to `ocx env` to compose a chosen set of tool groups. The capabilities under **Product Vision** below remain **roadmap, not present**.
+**Environment injection + project-lifecycle commands shipped.** The extension activates on a workspace `ocx.toml`, composes the project environment with the `ocx` CLI (`ocx env`), and injects it into the extension host's `process.env` (always) and — opt-in — integrated terminals/tasks (`ocx.env.applyToTerminals`, **default off**; OCX will own a terminal hook). It ships Command-Palette commands that shell out to the `ocx` binary: environment (reload, reset, restartExtensions, showOutput, init) plus the project-lifecycle subcommands `lock`, `pull`, `upgrade`, and `clean` (output to the OCX channel; `pull` forwards `ocx.groups` as `--group`; all but `clean` reload the env afterwards). It also ships a status-bar indicator, file-watch reload, workspace-trust gating, `ocx.toml` schema validation, and a configurable group selector (`ocx.groups`). Running toolchain binaries as tasks needs no custom task type — built-in `shell`/`process` tasks inherit the OCX `PATH` when `ocx.env.applyToTerminals` is on. The capabilities under **Product Vision** below remain **roadmap, not present**.
 
 ## Product Vision — What It Will Do
 
 Planned capabilities (future work, sequenced roughly by value):
 
-1. **`ocx.toml` / `ocx.lock` authoring** — schema validation + IntelliSense (completion, hover, diagnostics) for the config files. Likely via a JSON-schema contribution and/or a language feature provider.
-2. **Run `ocx` CLI commands** — commands/tasks that invoke the `ocx` binary (install, select, upgrade, clean) from the Command Palette, surfacing output in an output channel / terminal.
-3. **Package & version browsing** — a view (TreeView) to browse known packages and available versions from the registry/index.
-4. **Status bar active versions** — show the currently selected tool versions for the active project in the status bar.
+1. **`ocx.toml` / `ocx.lock` authoring** — schema validation + IntelliSense (completion, hover, diagnostics) for the config files. Likely via a JSON-schema contribution and/or a language feature provider. Includes argument-taking, config-mutating subcommands (`ocx add`/`ocx remove`) once authoring UX exists.
+2. **Package & version browsing** — a view (TreeView) to browse known packages and available versions from the registry/index.
+3. **Status bar active versions** — show the currently selected tool versions for the active project in the status bar.
 
 ## Non-Goals
 

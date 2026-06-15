@@ -1,8 +1,17 @@
+import * as path from 'node:path';
+
 import * as vscode from 'vscode';
 
 import { readConfig } from './config';
 import { EnvManager } from './environment';
-import { isUnsupportedGroupFlag, runEnv, runInit } from './ocx';
+import {
+  buildSubcommandArgs,
+  isUnsupportedGroupFlag,
+  runEnv,
+  runInit,
+  runSubcommand,
+  type ProjectSubcommand,
+} from './ocx';
 import { StatusBar } from './status';
 
 /**
@@ -139,6 +148,10 @@ export function activate(context: vscode.ExtensionContext): OcxApi {
     vscode.commands.registerCommand('ocx.restartExtensions', () => executeRestart(output)),
     vscode.commands.registerCommand('ocx.showOutput', () => output.show()),
     vscode.commands.registerCommand('ocx.init', () => runInitCommand(output, reload)),
+    vscode.commands.registerCommand('ocx.lock', () => runProjectCommand('lock', output, reload)),
+    vscode.commands.registerCommand('ocx.pull', () => runProjectCommand('pull', output, reload)),
+    vscode.commands.registerCommand('ocx.upgrade', () => runProjectCommand('upgrade', output, reload)),
+    vscode.commands.registerCommand('ocx.clean', () => runProjectCommand('clean', output, reload)),
   );
 
   // --- listeners -----------------------------------------------------------
@@ -206,14 +219,75 @@ async function promptRestart(output: vscode.OutputChannel): Promise<void> {
   }
 }
 
+/** Single source of truth for the "ocx executable missing" user message. */
+function executableNotFoundMessage(executable: string): string {
+  return `OCX: could not find the "${executable}" executable. Set "ocx.path.executable" or install OCX.`;
+}
+
 async function notifyNotFound(executable: string): Promise<void> {
   const openSettings = 'Open Settings';
   const choice = await vscode.window.showErrorMessage(
-    `OCX: could not find the "${executable}" executable. Set "ocx.path.executable" or install OCX.`,
+    executableNotFoundMessage(executable),
     openSettings,
   );
   if (choice === openSettings) {
     await vscode.commands.executeCommand('workbench.action.openSettings', 'ocx.path.executable');
+  }
+}
+
+/**
+ * Run a project-lifecycle `ocx` subcommand against the workspace `ocx.toml`,
+ * surfacing progress and output. After a subcommand that can change the composed
+ * environment (`lock`/`upgrade` re-resolve `ocx.lock`; `pull` materializes
+ * tools), trigger a {@link reload} so the injected env reflects the new state.
+ * `clean` only removes unreferenced objects, so it needs no reload.
+ */
+async function runProjectCommand(
+  subcommand: ProjectSubcommand,
+  output: vscode.OutputChannel,
+  reload: () => Promise<void>,
+): Promise<void> {
+  const projectToml = await findProjectToml();
+  if (projectToml === undefined) {
+    void vscode.window.showErrorMessage('OCX: no ocx.toml found in the workspace.');
+    return;
+  }
+  const config = readConfig();
+  const result = await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: `OCX: running ocx ${subcommand}…`,
+      cancellable: false,
+    },
+    () =>
+      runSubcommand({
+        executable: config.executable,
+        args: buildSubcommandArgs(projectToml, subcommand, config.groups),
+        cwd: path.dirname(projectToml),
+        env: { ...process.env, ...config.extraEnv },
+      }),
+  );
+
+  if (!result.ok) {
+    output.appendLine(`[${subcommand}] failed: ${result.message}`);
+    void vscode.window.showErrorMessage(
+      result.notFound
+        ? executableNotFoundMessage(config.executable)
+        : `OCX: ocx ${subcommand} failed. ${result.message}`,
+    );
+    return;
+  }
+
+  output.appendLine(`[${subcommand}] ocx ${subcommand} completed`);
+  const detail = [result.stdout, result.stderr]
+    .map((stream) => stream.trim())
+    .filter((stream) => stream.length > 0)
+    .join('\n');
+  if (detail.length > 0) {
+    output.appendLine(detail);
+  }
+  if (subcommand !== 'clean') {
+    await reload();
   }
 }
 
@@ -236,7 +310,7 @@ async function runInitCommand(
     output.appendLine(`[init] failed: ${result.message}`);
     void vscode.window.showErrorMessage(
       result.notFound
-        ? `OCX: could not find the "${config.executable}" executable. Set "ocx.path.executable" or install OCX.`
+        ? executableNotFoundMessage(config.executable)
         : `OCX: ocx init failed. ${result.message}`,
     );
     return;

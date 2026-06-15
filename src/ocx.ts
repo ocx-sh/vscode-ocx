@@ -130,6 +130,76 @@ export async function runInit(opts: RunInitOptions): Promise<OcxInitResult> {
   }
 }
 
+/**
+ * Project-lifecycle `ocx` subcommands the extension exposes as palette commands.
+ * Each operates on the discovered project `ocx.toml` and takes no required
+ * argument. Deliberately excludes argument-taking, config-mutating subcommands
+ * (`add`/`remove` need a `<IDENTIFIER>` and belong with `ocx.toml` authoring) and
+ * non-existent ones — `ocx` has no `install`/`select`/`sync` (verified against
+ * `ocx --help`). Modelled as a closed union so the switch on it stays exhaustive.
+ */
+export type ProjectSubcommand = 'lock' | 'pull' | 'upgrade' | 'clean';
+
+/**
+ * Build the `ocx` argv for a project-lifecycle subcommand.
+ *
+ * Layout: `--project <p> <subcommand> [--group <g>…]`. The global `--project`
+ * flag MUST precede the subcommand (same constraint as {@link buildEnvArgs}).
+ * Only `pull` accepts a group selector (`ocx lock`/`upgrade`/`clean` have no
+ * `--group`), so groups are forwarded for `pull` alone — one `--group <name>`
+ * per entry (never comma-joined), mirroring {@link buildEnvArgs}. An empty group
+ * list yields a bare `ocx pull`, whose own default is to pull every group. Pure
+ * (no I/O) so it is unit-testable.
+ */
+export function buildSubcommandArgs(
+  projectToml: string,
+  subcommand: ProjectSubcommand,
+  groups: readonly string[],
+): string[] {
+  const args = ['--project', projectToml, subcommand];
+  if (subcommand === 'pull') {
+    for (const group of groups) {
+      args.push('--group', group);
+    }
+  }
+  return args;
+}
+
+export interface RunSubcommandOptions {
+  readonly executable: string;
+  /** Full argv after the executable (built by {@link buildSubcommandArgs}). */
+  readonly args: readonly string[];
+  /** Working directory — the project directory containing `ocx.toml`. */
+  readonly cwd: string;
+  readonly env: NodeJS.ProcessEnv;
+}
+
+/**
+ * Result of running an `ocx` subcommand. Discriminated on `ok` so callers handle
+ * the "not installed" case (`notFound`) distinctly from a non-zero exit.
+ */
+export type OcxRunResult =
+  | { readonly ok: true; readonly stdout: string; readonly stderr: string }
+  | { readonly ok: false; readonly notFound: boolean; readonly message: string };
+
+/**
+ * Run a project-lifecycle `ocx` subcommand via `execFile` (no shell, so argv is
+ * passed verbatim — no quoting/injection surface, matching {@link runEnv}).
+ * Captured stdout/stderr is surfaced to the OCX output channel by the caller.
+ */
+export async function runSubcommand(opts: RunSubcommandOptions): Promise<OcxRunResult> {
+  try {
+    const { stdout, stderr } = await execFileAsync(opts.executable, [...opts.args], {
+      cwd: opts.cwd,
+      env: opts.env,
+      maxBuffer: 4 * 1024 * 1024,
+    });
+    return { ok: true, stdout, stderr };
+  } catch (e) {
+    return { ok: false, notFound: isNotFound(e), message: errorMessage(e) };
+  }
+}
+
 /** Narrow an unknown thrown value to a Node syscall error. */
 function isErrnoException(e: unknown): e is NodeJS.ErrnoException {
   return e instanceof Error && 'code' in e;
