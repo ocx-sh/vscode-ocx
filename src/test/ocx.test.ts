@@ -1,6 +1,69 @@
 import * as assert from 'node:assert';
 
-import { parseEnvJson } from '../ocx';
+import { buildEnvArgs, isUnsupportedGroupFlag, parseEnvJson } from '../ocx';
+
+suite('buildEnvArgs', () => {
+  const TOML = '/work/ocx.toml';
+
+  test('no groups → global flags before env, no --group', () => {
+    assert.deepStrictEqual(buildEnvArgs(TOML, []), [
+      '--format',
+      'json',
+      '--project',
+      TOML,
+      'env',
+    ]);
+  });
+
+  test('a single group appends one --group token after env', () => {
+    assert.deepStrictEqual(buildEnvArgs(TOML, ['ci']), [
+      '--format',
+      'json',
+      '--project',
+      TOML,
+      'env',
+      '--group',
+      'ci',
+    ]);
+  });
+
+  test('multiple groups each get their own --group, in order', () => {
+    assert.deepStrictEqual(buildEnvArgs(TOML, ['default', 'ci', 'lint']), [
+      '--format',
+      'json',
+      '--project',
+      TOML,
+      'env',
+      '--group',
+      'default',
+      '--group',
+      'ci',
+      '--group',
+      'lint',
+    ]);
+  });
+
+  test('group values are passed verbatim, never comma-joined', () => {
+    // The extension emits one --group per entry; it never splits/joins on commas.
+    const args = buildEnvArgs(TOML, ['all']);
+    assert.deepStrictEqual(args.slice(-2), ['--group', 'all']);
+    assert.ok(!args.includes('default,ci'));
+  });
+});
+
+suite('isUnsupportedGroupFlag', () => {
+  test('matches the clap "unexpected argument --group" usage error', () => {
+    assert.ok(isUnsupportedGroupFlag("error: unexpected argument '--group' found"));
+    // Quoting/locale variants still match on the two stable substrings.
+    assert.ok(isUnsupportedGroupFlag('unexpected argument --group found'));
+  });
+
+  test('does not match unrelated env failures', () => {
+    assert.ok(!isUnsupportedGroupFlag('ocx.lock not found; run `ocx lock`'));
+    assert.ok(!isUnsupportedGroupFlag('unexpected argument --shell found'));
+    assert.ok(!isUnsupportedGroupFlag(''));
+  });
+});
 
 suite('parseEnvJson', () => {
   test('parses path and constant entries in declaration order', () => {

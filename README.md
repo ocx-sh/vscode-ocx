@@ -25,6 +25,10 @@ environment with the `ocx` CLI and injects it into VS Code:
   the environment changes (configurable: `ocx.restart.automatic`).
 - **Live reload** — edits to `ocx.toml`/`ocx.lock` trigger a reload
   (`ocx.watchForChanges`).
+- **Tool groups** *(opt-in)* — set `ocx.groups` to compose specific groups from
+  `ocx.toml` (`default`, a named `[group.*]`, or `all`) instead of only the
+  default group. Passed to `ocx env` as `--group`; empty (default) is unchanged.
+  Requires an `ocx` version whose `ocx env` accepts `--group`.
 - **Status bar** — shows the loaded state; click to reload.
 
 Environment injection mutates `PATH`, so it runs only in a **trusted** workspace.

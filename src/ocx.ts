@@ -47,23 +47,49 @@ export interface RunEnvOptions {
   readonly executable: string;
   /** Absolute path to the project `ocx.toml`. */
   readonly projectToml: string;
+  /**
+   * Tool groups to compose (`ocx.groups`). Empty ⇒ the default group only —
+   * the same set `ocx env` composes with no group flag. See {@link buildEnvArgs}.
+   */
+  readonly groups: readonly string[];
   /** Environment for the child process (baseline env + `ocx.extraEnv`). */
   readonly env: NodeJS.ProcessEnv;
 }
 
 /**
+ * Build the `ocx` argv for composing the project environment.
+ *
+ * Layout: `--format json --project <p> env [--group <g>]…`. The global
+ * `--format`/`--project` flags MUST precede the `env` subcommand (verified
+ * against `ocx` 0.3.7 — a per-subcommand `--project` is rejected); a group
+ * selector is a **subcommand** flag and therefore follows `env`, mirroring the
+ * `ocx run`/`ocx pull` convention (`-g`/`--group`, one selector per token).
+ *
+ * Group semantics follow the CLI verbatim: `default` selects the implicit
+ * `[tools]` table, `all` expands to `default` + every `[group.*]`, and an
+ * **empty** list composes the default group only (it does NOT mean
+ * "everything"). Each group is emitted as its own `--group <name>` pair so a
+ * value never needs comma-escaping. Pure (no I/O) so it is unit-testable.
+ */
+export function buildEnvArgs(projectToml: string, groups: readonly string[]): string[] {
+  const args = ['--format', 'json', '--project', projectToml, 'env'];
+  for (const group of groups) {
+    args.push('--group', group);
+  }
+  return args;
+}
+
+/**
  * Compose the project environment via `ocx --format json --project <p> env`.
  *
- * The global `--format`/`--project` flags MUST precede the `env` subcommand
- * (verified against `ocx` 0.3.7 — a per-subcommand `--project` is rejected).
  * Runs without a shell (`execFile`) so the executable path and args are passed
- * verbatim (no quoting/injection surface).
+ * verbatim (no quoting/injection surface). Argv is built by {@link buildEnvArgs}.
  */
 export async function runEnv(opts: RunEnvOptions): Promise<OcxEnvResult> {
   try {
     const { stdout } = await execFileAsync(
       opts.executable,
-      ['--format', 'json', '--project', opts.projectToml, 'env'],
+      buildEnvArgs(opts.projectToml, opts.groups),
       { env: opts.env, maxBuffer: 4 * 1024 * 1024 },
     );
     return { kind: 'ok', entries: parseEnvJson(stdout) };
@@ -73,6 +99,18 @@ export async function runEnv(opts: RunEnvOptions): Promise<OcxEnvResult> {
     }
     return { kind: 'error', message: errorMessage(e) };
   }
+}
+
+/**
+ * True when an `ocx env` failure is the CLI rejecting the `--group` selector —
+ * i.e. the installed `ocx` predates `ocx env --group` support (the flag lives on
+ * `ocx run`/`ocx pull` but not yet on `ocx env`, which hardcodes the default
+ * group). clap reports an unknown flag as `error: unexpected argument '--group'
+ * found`; match on the stable, quoting/locale-tolerant substrings so the caller
+ * can turn a cryptic usage error into actionable guidance.
+ */
+export function isUnsupportedGroupFlag(message: string): boolean {
+  return message.includes('--group') && message.includes('unexpected argument');
 }
 
 export interface RunInitOptions {

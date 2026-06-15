@@ -97,6 +97,14 @@
           "default": false,
           "markdownDescription": "Inject the OCX environment into integrated terminals and tasks. **Off by default** — the extension host/language-server `PATH` is injected regardless. Takes effect only in **newly opened** terminals (reopen existing terminals to apply)."
         },
+        "ocx.groups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Tool groups to compose into the environment, passed to `ocx env` as `--group`. Each entry selects a group declared in `ocx.toml`: `default` is the implicit `[tools]` table, a name like `ci` selects `[group.ci]`, and `all` expands to `default` plus every `[group.*]`. **Empty (default) composes the default group only** — not everything. Requires an `ocx` version whose `ocx env` accepts `--group`."
+        },
         "ocx.extraEnv": {
           "type": "object",
           "default": {},
