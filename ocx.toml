@@ -1,5 +1,0 @@
-[tools]
-go-task = "ocx.sh/go-task:latest"
-nodejs = "ocx.sh/nodejs:24"
-
-[group]
