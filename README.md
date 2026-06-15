@@ -6,34 +6,34 @@
 
 VS Code support for [OCX](https://github.com/ocx-sh/ocx) — the OCI-registry-backed binary package manager.
 
-> **Status:** loads the OCX environment into the editor. `ocx.toml`/`ocx.lock`
-> authoring beyond schema validation, package browsing, and status-bar active
-> versions are still planned — see `.claude/rules/product-context.md`.
+Open a folder that contains an `ocx.toml` and the extension composes the
+project's toolchain with the `ocx` CLI and injects it into the editor, so
+language servers, extensions, terminals, and tasks find the tools your project
+declares.
 
 ## What it does
 
-Open a folder that contains an `ocx.toml` and the extension composes the project
-environment with the `ocx` CLI and injects it into VS Code:
-
-- **Terminals & tasks** *(opt-in)* — enable `ocx.env.applyToTerminals` (off by
-  default) and **newly opened** integrated terminals get the OCX `PATH` (the
-  tools declared in `ocx.toml`).
-- **Extensions & language servers** — the `PATH` is also injected into the
-  extension host's `process.env`, so language servers and other extensions can
-  find OCX-managed tools (node, go-task, …). Because already-running extensions
-  cache their environment, the extension prompts to **Restart Extensions** when
-  the environment changes (configurable: `ocx.restart.automatic`).
-- **Live reload** — edits to `ocx.toml`/`ocx.lock` trigger a reload
+- **Extensions & language servers** — the composed `PATH` is injected into the
+  extension host, so language servers and other extensions find OCX-managed
+  tools (node, go-task, …). Because running extensions cache their environment,
+  OCX prompts to **Restart Extensions** when it changes
+  (`ocx.restart.automatic` to skip the prompt).
+- **Terminals & tasks** *(opt-in)* — enable `ocx.env.applyToTerminals` and
+  **newly opened** terminals and tasks get the OCX `PATH`.
+- **Run `ocx` from the palette** — resolve the lockfile, pull, upgrade, and
+  clean without leaving the editor (see [Commands](#commands)).
+- **Live reload** — edits to `ocx.toml`/`ocx.lock` reload the environment
   (`ocx.watchForChanges`).
 - **Tool groups** *(opt-in)* — set `ocx.groups` to compose specific groups from
   `ocx.toml` (`default`, a named `[group.*]`, or `all`) instead of only the
-  default group. Passed to `ocx env` as `--group`; empty (default) is unchanged.
-  Requires an `ocx` version whose `ocx env` accepts `--group`.
+  default group.
 - **Status bar** — shows the loaded state; click to reload.
 
 Environment injection mutates `PATH`, so it runs only in a **trusted** workspace.
 
-### Commands
+## Commands
+
+Run from the Command Palette (or bind to a key — see [Tasks & keybindings](#using-ocx-with-tasks)).
 
 | Command | Does |
 | --- | --- |
@@ -42,51 +42,117 @@ Environment injection mutates `PATH`, so it runs only in a **trusted** workspace
 | `OCX: Restart Extensions` | Restart the extension host (reload window on remote) |
 | `OCX: Show Output` | Open the OCX output channel |
 | `OCX: Initialize ocx.toml` | Run `ocx init` in the workspace folder |
+| `OCX: Resolve Lockfile` | Run `ocx lock` — resolve tool tags to digests in `ocx.lock` |
+| `OCX: Pull Tools` | Run `ocx pull` — pre-warm the object store (forwards `ocx.groups` as `--group`) |
+| `OCX: Upgrade Tools` | Run `ocx upgrade` — re-resolve every locked tag to its newest digest |
+| `OCX: Clean Object Store` | Run `ocx clean` — remove unreferenced objects from the local store |
 
-### `ocx.toml` validation
+The four `ocx` lifecycle commands run against the workspace `ocx.toml`, stream
+output to the OCX channel, and (except `clean`) reload the environment afterward.
+
+## Using OCX with tasks
+
+The commands above run from the Command Palette, not from `tasks.json`. There is
+**no custom OCX task type** — built-in `shell`/`process` tasks already work, so
+you run the OCX-managed tools (or `ocx` itself) directly.
+
+### Run a toolchain binary
+
+Enable `ocx.env.applyToTerminals` so tasks inherit the OCX `PATH`, then add the
+task. The setting takes effect in **newly created** task/terminal processes
+(reopen terminals or reload the window).
+
+`.vscode/settings.json`:
+
+```jsonc
+{ "ocx.env.applyToTerminals": true }
+```
+
+`.vscode/tasks.json`:
+
+```jsonc
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "type": "process",     // direct exec — no shell quoting
+      "command": "go-task",  // any tool from ocx.toml, resolved on the injected PATH
+      "args": ["build"]
+    }
+  ]
+}
+```
+
+### Run `ocx` and chain tasks
+
+`ocx` itself runs as an ordinary task. `dependsOn` lets you chain a lockfile
+resolve into a build — something the palette commands cannot do:
+
+```jsonc
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "ocx: lock",    "type": "process", "command": "ocx", "args": ["lock"] },
+    { "label": "ocx: pull ci", "type": "process", "command": "ocx", "args": ["pull", "--group", "ci"] },
+    {
+      "label": "lock + build",
+      "dependsOrder": "sequence",
+      "dependsOn": ["ocx: lock", "build"],
+      "group": { "kind": "build", "isDefault": true }  // Ctrl+Shift+B
+    }
+  ]
+}
+```
+
+### Bind a command to a key
+
+Palette commands can't go in `tasks.json`, but they are bindable —
+`keybindings.json`:
+
+```jsonc
+[
+  { "key": "ctrl+alt+l", "command": "ocx.lock" },
+  { "key": "ctrl+alt+u", "command": "ocx.pull" }
+]
+```
+
+> **Note:** toolchain binaries (cmake, node, go-task, …) need
+> `ocx.env.applyToTerminals`. `ocx` itself only needs to be installed (or
+> `ocx.path.executable` set). Use `"type": "shell"` instead of `"process"` when
+> a task needs pipes or `&&`.
+
+## Settings
+
+| Setting | Default | Does |
+| --- | --- | --- |
+| `ocx.path.executable` | `ocx` | Path to (or name of) the `ocx` executable |
+| `ocx.enable` | `true` | Load the OCX environment into the editor |
+| `ocx.watchForChanges` | `true` | Reload when `ocx.toml`/`ocx.lock` change |
+| `ocx.restart.automatic` | `false` | Restart the extension host automatically instead of prompting |
+| `ocx.env.applyToTerminals` | `false` | Inject the OCX `PATH` into terminals and tasks |
+| `ocx.groups` | `[]` | Tool groups to compose (passed to `ocx env`/`ocx pull` as `--group`) |
+| `ocx.extraEnv` | `{}` | Extra environment variables for the `ocx` child process |
+
+## `ocx.toml` validation
 
 This extension contributes a JSON Schema for `ocx.toml` via the
 `contributes.tomlValidation` point consumed by
 [Even Better TOML](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)
-(`tamasfe.even-better-toml`). Install that extension to get completion, hover,
-and diagnostics for `ocx.toml`. It is listed in the workspace's recommended
-extensions.
+(`tamasfe.even-better-toml`). Install it for completion, hover, and diagnostics
+on `ocx.toml`. It is listed in the workspace's recommended extensions.
 
-### Requirements
+## Requirements
 
 The `ocx` CLI must be installed and resolvable. Set `ocx.path.executable` if it
 is not on `PATH`.
 
-## Develop
+## Contributing
 
-Requires Node.js 20+.
-
-```sh
-npm install
-npm run check      # lint + type-check + build
-npm test           # integration tests (downloads VS Code)
-```
-
-Press <kbd>F5</kbd> in VS Code to launch the Extension Development Host, then run
-**OCX: Reload Environment** from the Command Palette.
-
-### Useful scripts
-
-| Script | Purpose |
-| --- | --- |
-| `npm run build` | Bundle `src/extension.ts` → `dist/extension.js` via esbuild |
-| `npm run watch` | Rebuild on change |
-| `npm run check-types` | `tsc --noEmit` |
-| `npm run lint` | ESLint (flat config) |
-| `npm test` | `@vscode/test-cli` integration tests |
-| `npm run package` | Build a `.vsix` with `vsce` |
-
-## Tech
-
-TypeScript · esbuild · `@vscode/test-cli` · ESLint flat config + Prettier.
-See [`CLAUDE.md`](./CLAUDE.md) and [`.claude/`](./.claude/) for the project's
-AI-assistant configuration and engineering rules.
+Bug reports, feature requests, and PRs welcome. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, build/test
+workflow, commit conventions, and the roadmap.
 
 ## License
 
-[Apache-2.0](./LICENSE)
+[Apache-2.0](LICENSE)
