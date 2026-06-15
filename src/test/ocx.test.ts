@@ -1,6 +1,6 @@
 import * as assert from 'node:assert';
 
-import { buildEnvArgs, isUnsupportedGroupFlag, parseEnvJson } from '../ocx';
+import { buildEnvArgs, buildSubcommandArgs, isUnsupportedGroupFlag, parseEnvJson } from '../ocx';
 
 suite('buildEnvArgs', () => {
   const TOML = '/work/ocx.toml';
@@ -47,6 +47,44 @@ suite('buildEnvArgs', () => {
     // The extension emits one --group per entry; it never splits/joins on commas.
     const args = buildEnvArgs(TOML, ['all']);
     assert.deepStrictEqual(args.slice(-2), ['--group', 'all']);
+    assert.ok(!args.includes('default,ci'));
+  });
+});
+
+suite('buildSubcommandArgs', () => {
+  const TOML = '/work/ocx.toml';
+
+  test('lock/upgrade/clean → --project before the subcommand, no group flags', () => {
+    for (const sub of ['lock', 'upgrade', 'clean'] as const) {
+      assert.deepStrictEqual(buildSubcommandArgs(TOML, sub, []), ['--project', TOML, sub]);
+    }
+  });
+
+  test('non-pull subcommands ignore groups (only pull accepts --group)', () => {
+    for (const sub of ['lock', 'upgrade', 'clean'] as const) {
+      assert.deepStrictEqual(buildSubcommandArgs(TOML, sub, ['ci', 'lint']), [
+        '--project',
+        TOML,
+        sub,
+      ]);
+    }
+  });
+
+  test('pull with no groups is a bare pull (CLI default pulls everything)', () => {
+    assert.deepStrictEqual(buildSubcommandArgs(TOML, 'pull', []), ['--project', TOML, 'pull']);
+  });
+
+  test('pull appends one --group per entry, in order, never comma-joined', () => {
+    const args = buildSubcommandArgs(TOML, 'pull', ['default', 'ci']);
+    assert.deepStrictEqual(args, [
+      '--project',
+      TOML,
+      'pull',
+      '--group',
+      'default',
+      '--group',
+      'ci',
+    ]);
     assert.ok(!args.includes('default,ci'));
   });
 });

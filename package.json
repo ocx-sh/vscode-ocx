@@ -66,6 +66,26 @@
         "command": "ocx.init",
         "title": "Initialize ocx.toml",
         "category": "OCX"
+      },
+      {
+        "command": "ocx.lock",
+        "title": "Resolve Lockfile",
+        "category": "OCX"
+      },
+      {
+        "command": "ocx.pull",
+        "title": "Pull Tools",
+        "category": "OCX"
+      },
+      {
+        "command": "ocx.upgrade",
+        "title": "Upgrade Tools",
+        "category": "OCX"
+      },
+      {
+        "command": "ocx.clean",
+        "title": "Clean Object Store",
+        "category": "OCX"
       }
     ],
     "configuration": {
