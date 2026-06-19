@@ -155,18 +155,45 @@ export function activate(context: vscode.ExtensionContext): OcxApi {
   );
 
   // --- listeners -----------------------------------------------------------
-  const watcher = vscode.workspace.createFileSystemWatcher('**/{ocx.toml,ocx.lock}');
   const onConfigFileChange = (): void => {
     if (readConfig().watchForChanges) {
       void reload();
     }
   };
-  watcher.onDidChange(onConfigFileChange);
-  watcher.onDidCreate(onConfigFileChange);
-  watcher.onDidDelete(onConfigFileChange);
+
+  // Watch only the `ocx.toml`/`ocx.lock` at each workspace-folder root — the
+  // exact files {@link findProjectToml} resolves — so a nested copy never
+  // triggers a reload. A `RelativePattern` with a brace pattern matches files
+  // directly in the folder root only (a recursive `**/` glob would re-introduce
+  // the nested-file problem). Per-folder watchers, unlike one recursive glob, do
+  // not auto-cover folders added later, so they are rebuilt on folder changes.
+  let folderWatchers: vscode.FileSystemWatcher[] = [];
+  const disposeFolderWatchers = (): void => {
+    for (const w of folderWatchers) {
+      w.dispose();
+    }
+    folderWatchers = [];
+  };
+  const rebuildFolderWatchers = (): void => {
+    disposeFolderWatchers();
+    for (const folder of vscode.workspace.workspaceFolders ?? []) {
+      const watcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(folder, '{ocx.toml,ocx.lock}'),
+      );
+      watcher.onDidChange(onConfigFileChange);
+      watcher.onDidCreate(onConfigFileChange);
+      watcher.onDidDelete(onConfigFileChange);
+      folderWatchers.push(watcher);
+    }
+  };
+  rebuildFolderWatchers();
 
   context.subscriptions.push(
-    watcher,
+    { dispose: disposeFolderWatchers },
+    vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      rebuildFolderWatchers();
+      void reload();
+    }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('ocx')) {
         void reload();
@@ -189,10 +216,27 @@ export function deactivate(): void {
   // Intentionally empty — the restore disposable pushed in activate handles cleanup.
 }
 
-/** Find the first `ocx.toml` in the workspace (v1 targets a single project). */
+/**
+ * Resolve the project `ocx.toml` at a workspace-folder root.
+ *
+ * v1 targets a single project, so this returns the first workspace folder whose
+ * root contains an `ocx.toml` — deliberately NOT a nested copy. A recursive
+ * `findFiles` glob would pick an arbitrary nested file since its result order is
+ * undefined; anchoring to the folder root keeps discovery deterministic.
+ * Nested/multi projects stay out of scope until the project picker lands — a
+ * future `findAllProjectTomls()` would sit beside this.
+ */
 async function findProjectToml(): Promise<string | undefined> {
-  const uris = await vscode.workspace.findFiles('**/ocx.toml', '**/node_modules/**', 1);
-  return uris[0]?.fsPath;
+  for (const folder of vscode.workspace.workspaceFolders ?? []) {
+    const uri = vscode.Uri.joinPath(folder.uri, 'ocx.toml');
+    try {
+      await vscode.workspace.fs.stat(uri);
+      return uri.fsPath;
+    } catch {
+      // Not at this folder's root — try the next folder.
+    }
+  }
+  return undefined;
 }
 
 /** Restart the extension host (or reload the window on remote). */

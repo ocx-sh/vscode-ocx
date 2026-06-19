@@ -28,7 +28,7 @@
   "icon": "assets/logo-128.png",
   "main": "./dist/extension.js",
   "activationEvents": [
-    "workspaceContains:**/ocx.toml"
+    "workspaceContains:ocx.toml"
   ],
   "capabilities": {
     "untrustedWorkspaces": {

@@ -1,0 +1,7 @@
+# Decoy project file in a nested directory. Discovery must resolve the
+# workspace-ROOT ocx.toml, never this one. A distinct tool set makes a wrong
+# pick obvious. See src/test/extension.test.ts (root-discovery regression).
+[tools]
+ripgrep = "ocx.sh/ripgrep:latest"
+
+[group]

@@ -72,6 +72,18 @@ async function setGroups(value: readonly string[] | undefined): Promise<void> {
     .update('groups', value, vscode.ConfigurationTarget.Global);
 }
 
+/**
+ * Absolute path of the workspace-ROOT `ocx.toml` the extension must resolve.
+ * The fixture also contains `nested/ocx.toml` (a decoy); discovery must pick
+ * this root file, never the nested one — this is what the `--project` path
+ * assertions below lock in as the regression for root-anchored discovery.
+ */
+function rootProjectToml(): string {
+  const folder = vscode.workspace.workspaceFolders?.[0];
+  assert.ok(folder, 'a workspace folder must be open in the test host');
+  return path.join(folder.uri.fsPath, 'ocx.toml');
+}
+
 let api: OcxApi;
 let stubPath: string;
 let stubBadPath: string;
@@ -210,7 +222,11 @@ suite('OCX extension', () => {
       const recorded = readFileSync(argsFile, 'utf8').trim().split('\n');
       // Global flags precede the subcommand; the project path is discovered.
       assert.deepStrictEqual(recorded.slice(0, 3), ['--format', 'json', '--project']);
-      assert.ok(recorded[3]?.endsWith('ocx.toml'), 'third flag value is the project ocx.toml');
+      assert.strictEqual(
+        recorded[3],
+        rootProjectToml(),
+        'third flag value is the workspace-root ocx.toml, not a nested one',
+      );
       // Group selectors follow `env`, one --group per entry, blanks dropped.
       assert.deepStrictEqual(recorded.slice(4), ['env', '--group', 'ci', '--group', 'lint']);
     } finally {
@@ -255,7 +271,11 @@ suite('OCX extension', () => {
 
       const recorded = readFileSync(argsFile, 'utf8').trim().split('\n');
       assert.strictEqual(recorded[0], '--project', 'global --project precedes the subcommand');
-      assert.ok(recorded[1]?.endsWith('ocx.toml'), 'second token is the discovered project ocx.toml');
+      assert.strictEqual(
+        recorded[1],
+        rootProjectToml(),
+        'second token is the workspace-root ocx.toml, not a nested one',
+      );
       assert.strictEqual(recorded[2], 'clean', 'the subcommand follows the global flags');
       assert.ok(!recorded.includes('--group'), 'clean never receives a --group selector');
     } finally {
