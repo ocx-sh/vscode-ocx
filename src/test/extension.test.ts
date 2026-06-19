@@ -72,6 +72,12 @@ async function setGroups(value: readonly string[] | undefined): Promise<void> {
     .update('groups', value, vscode.ConfigurationTarget.Global);
 }
 
+async function setProject(value: string | undefined): Promise<void> {
+  await vscode.workspace
+    .getConfiguration('ocx')
+    .update('project', value, vscode.ConfigurationTarget.Global);
+}
+
 /**
  * Absolute path of the workspace-ROOT `ocx.toml` the extension must resolve.
  * The fixture also contains `nested/ocx.toml` (a decoy); discovery must pick
@@ -251,6 +257,35 @@ suite('OCX extension', () => {
       assert.ok(!recorded.includes('--group'), 'no --group token when ocx.groups is empty');
       assert.strictEqual(recorded.at(-1), 'env', 'env is the final token with no groups');
     } finally {
+      await setExecutable(stubPath);
+      api.reset();
+    }
+  });
+
+  // Phase 2: an explicit `ocx.project` overrides root discovery — the configured
+  // (here nested) manifest is resolved instead of the workspace-root one.
+  test('ocx.project overrides root discovery (resolves the configured path)', async function () {
+    if (isWindows) {
+      this.skip();
+    }
+    api.reset();
+    const argsFile = path.join(tmpdir(), `ocx-args-project-${process.pid}`);
+    const argStub = writeArgsStub(`ocx-stub-project-${process.pid}.sh`, STUB_JSON, argsFile);
+    await setExecutable(argStub);
+    await setProject('nested/ocx.toml');
+    try {
+      await api.reload();
+
+      const recorded = readFileSync(argsFile, 'utf8').trim().split('\n');
+      const folder = vscode.workspace.workspaceFolders?.[0];
+      assert.ok(folder, 'a workspace folder must be open in the test host');
+      assert.strictEqual(
+        recorded[3],
+        path.join(folder.uri.fsPath, 'nested', 'ocx.toml'),
+        'the configured nested manifest is used, overriding workspace-root discovery',
+      );
+    } finally {
+      await setProject(undefined);
       await setExecutable(stubPath);
       api.reset();
     }

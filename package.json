@@ -28,7 +28,7 @@
   "icon": "assets/logo-128.png",
   "main": "./dist/extension.js",
   "activationEvents": [
-    "workspaceContains:ocx.toml"
+    "workspaceContains:**/ocx.toml"
   ],
   "capabilities": {
     "untrustedWorkspaces": {
@@ -101,6 +101,12 @@
           "type": "boolean",
           "default": true,
           "description": "Enable loading the OCX environment into the editor."
+        },
+        "ocx.project": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "Path to the project manifest (`ocx.toml`), absolute or relative to the workspace folder (e.g. `packages/app/ocx.toml`). **Empty (default) auto-discovers `ocx.toml` at the workspace-folder root.** Used as the `ocx --project` target and to scope the file watcher."
         },
         "ocx.watchForChanges": {
           "type": "boolean",

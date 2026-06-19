@@ -15,6 +15,12 @@ export interface OcxConfig {
   readonly executable: string;
   /** Master on/off switch (`ocx.enable`). */
   readonly enable: boolean;
+  /**
+   * Path to the project manifest (`ocx.project`), absolute or relative to a
+   * workspace folder. Empty ⇒ auto-discover `ocx.toml` at the workspace-folder
+   * root. Trimmed at read time. Consumed by the `ProjectLocator` (`./project.ts`).
+   */
+  readonly project: string;
   /** Reload when `ocx.toml`/`ocx.lock` change (`ocx.watchForChanges`). */
   readonly watchForChanges: boolean;
   /** Restart the ext host automatically vs. prompt (`ocx.restart.automatic`). */
@@ -37,6 +43,7 @@ export function readConfig(scope?: vscode.ConfigurationScope): OcxConfig {
   return {
     executable: c.get<string>('path.executable', 'ocx'),
     enable: c.get<boolean>('enable', true),
+    project: c.get<string>('project', '').trim(),
     watchForChanges: c.get<boolean>('watchForChanges', true),
     restartAutomatic: c.get<boolean>('restart.automatic', false),
     applyToTerminals: c.get<boolean>('env.applyToTerminals', false),
