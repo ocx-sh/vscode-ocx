@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-06-19
+
+### Added
+
+- **`ocx.project`** — configure the path to the project manifest (absolute or
+  relative to a workspace folder; empty auto-discovers the workspace-root
+  `ocx.toml`). Project discovery, file-watching, and the `--project` argument
+  now derive from a single `ProjectLocator`, and activation broadens to a
+  configured non-root project.
+
+### Fixed
+
+- Resolve `ocx.toml` at the workspace-folder root instead of an arbitrary
+  nested match, so `ocx env` and the project subcommands run against the
+  intended project (`--project` + cwd).
+
 ## [0.1.1] - 2026-06-15
 
 ### Added
@@ -41,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project tooling: esbuild bundling, `@vscode/test-cli` integration tests,
   ESLint flat config + Prettier, and GitHub Actions CI/release.
 
-[Unreleased]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ocx-sh/vscode-ocx/releases/tag/v0.1.0

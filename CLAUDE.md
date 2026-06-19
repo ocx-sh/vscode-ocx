@@ -20,8 +20,11 @@ workspace `ocx.toml`, shells out to `ocx env`, and injects the composed
 (reload, reset, restartExtensions, showOutput, init) plus project-lifecycle
 subcommands that shell out to `ocx` (lock, pull, upgrade, clean). Also a status
 bar item, file-watch reload, workspace-trust gating, `ocx.toml` schema
-validation, and a configurable group selector (`ocx.groups`, forwarded to
-`ocx env`/`ocx pull` as `--group`). Toolchain binaries run via built-in `shell`
+validation, a configurable group selector (`ocx.groups`, forwarded to
+`ocx env`/`ocx pull` as `--group`), and a configurable project-file location
+(`ocx.project`; defaults to the workspace-root `ocx.toml`). Project discovery,
+file-watching, and the `--project` argument all derive from one `ProjectLocator`
+(`src/project.ts`). Toolchain binaries run via built-in `shell`
 tasks (no custom task type) once `ocx.env.applyToTerminals` is on. Planned next:
 `ocx.toml`/`ocx.lock` IntelliSense, package/version browsing, status-bar active
 versions.

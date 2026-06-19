@@ -1,5 +1,3 @@
-import * as path from 'node:path';
-
 import * as vscode from 'vscode';
 
 import { readConfig } from './config';
@@ -12,6 +10,7 @@ import {
   runSubcommand,
   type ProjectSubcommand,
 } from './ocx';
+import { PROJECT_FILE, ProjectLocator } from './project';
 import { StatusBar } from './status';
 
 /**
@@ -37,8 +36,9 @@ export function activate(context: vscode.ExtensionContext): OcxApi {
   const output = vscode.window.createOutputChannel('OCX', { log: true });
   const status = new StatusBar();
   const envManager = new EnvManager(context.environmentVariableCollection, context.workspaceState);
+  const locator = new ProjectLocator();
 
-  context.subscriptions.push(output, status, { dispose: () => envManager.restore() });
+  context.subscriptions.push(output, status, locator, { dispose: () => envManager.restore() });
 
   // --- reload, serialized so concurrent triggers never stack PATH ----------
   let running: Promise<void> | undefined;
@@ -58,8 +58,8 @@ export function activate(context: vscode.ExtensionContext): OcxApi {
       return;
     }
 
-    const projectToml = await findProjectToml();
-    if (projectToml === undefined) {
+    const project = await locator.resolve();
+    if (project === undefined) {
       envManager.reset();
       status.set({ kind: 'no-project' });
       return;
@@ -70,7 +70,7 @@ export function activate(context: vscode.ExtensionContext): OcxApi {
     const childEnv: NodeJS.ProcessEnv = { ...process.env, ...config.extraEnv };
     const result = await runEnv({
       executable: config.executable,
-      projectToml,
+      projectToml: project.tomlPath,
       groups: config.groups,
       env: childEnv,
     });
@@ -100,7 +100,7 @@ export function activate(context: vscode.ExtensionContext): OcxApi {
           applyToTerminals: config.applyToTerminals,
         });
         status.set({ kind: 'loaded', count });
-        output.appendLine(`[reload] applied ${count} env entries from ${projectToml}`);
+        output.appendLine(`[reload] applied ${count} env entries from ${project.tomlPath}`);
         if (changed) {
           if (config.restartAutomatic) {
             void executeRestart(output);
@@ -147,28 +147,25 @@ export function activate(context: vscode.ExtensionContext): OcxApi {
     }),
     vscode.commands.registerCommand('ocx.restartExtensions', () => executeRestart(output)),
     vscode.commands.registerCommand('ocx.showOutput', () => output.show()),
-    vscode.commands.registerCommand('ocx.init', () => runInitCommand(output, reload)),
-    vscode.commands.registerCommand('ocx.lock', () => runProjectCommand('lock', output, reload)),
-    vscode.commands.registerCommand('ocx.pull', () => runProjectCommand('pull', output, reload)),
-    vscode.commands.registerCommand('ocx.upgrade', () => runProjectCommand('upgrade', output, reload)),
-    vscode.commands.registerCommand('ocx.clean', () => runProjectCommand('clean', output, reload)),
+    vscode.commands.registerCommand('ocx.init', () => runInitCommand(output, reload, locator)),
+    vscode.commands.registerCommand('ocx.lock', () => runProjectCommand('lock', output, reload, locator)),
+    vscode.commands.registerCommand('ocx.pull', () => runProjectCommand('pull', output, reload, locator)),
+    vscode.commands.registerCommand('ocx.upgrade', () =>
+      runProjectCommand('upgrade', output, reload, locator),
+    ),
+    vscode.commands.registerCommand('ocx.clean', () => runProjectCommand('clean', output, reload, locator)),
   );
 
   // --- listeners -----------------------------------------------------------
-  const watcher = vscode.workspace.createFileSystemWatcher('**/{ocx.toml,ocx.lock}');
-  const onConfigFileChange = (): void => {
-    if (readConfig().watchForChanges) {
-      void reload();
-    }
-  };
-  watcher.onDidChange(onConfigFileChange);
-  watcher.onDidCreate(onConfigFileChange);
-  watcher.onDidDelete(onConfigFileChange);
-
+  // The locator owns project discovery + file/folder watching and signals when
+  // the project's files or location may have changed; we just reload. An `ocx`
+  // settings change may move the project (`ocx.project`), so rescope the watcher
+  // before reloading — one reload path covers every configuration change.
   context.subscriptions.push(
-    watcher,
+    locator.onDidChange(() => void reload()),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('ocx')) {
+        locator.rescope();
         void reload();
       }
     }),
@@ -187,12 +184,6 @@ export function activate(context: vscode.ExtensionContext): OcxApi {
 /** Disposables on `context.subscriptions` are torn down automatically. */
 export function deactivate(): void {
   // Intentionally empty — the restore disposable pushed in activate handles cleanup.
-}
-
-/** Find the first `ocx.toml` in the workspace (v1 targets a single project). */
-async function findProjectToml(): Promise<string | undefined> {
-  const uris = await vscode.workspace.findFiles('**/ocx.toml', '**/node_modules/**', 1);
-  return uris[0]?.fsPath;
 }
 
 /** Restart the extension host (or reload the window on remote). */
@@ -246,10 +237,11 @@ async function runProjectCommand(
   subcommand: ProjectSubcommand,
   output: vscode.OutputChannel,
   reload: () => Promise<void>,
+  locator: ProjectLocator,
 ): Promise<void> {
-  const projectToml = await findProjectToml();
-  if (projectToml === undefined) {
-    void vscode.window.showErrorMessage('OCX: no ocx.toml found in the workspace.');
+  const project = await locator.resolve();
+  if (project === undefined) {
+    void vscode.window.showErrorMessage(`OCX: no ${PROJECT_FILE} found in the workspace.`);
     return;
   }
   const config = readConfig();
@@ -262,8 +254,8 @@ async function runProjectCommand(
     () =>
       runSubcommand({
         executable: config.executable,
-        args: buildSubcommandArgs(projectToml, subcommand, config.groups),
-        cwd: path.dirname(projectToml),
+        args: buildSubcommandArgs(project.tomlPath, subcommand, config.groups),
+        cwd: project.dir,
         env: { ...process.env, ...config.extraEnv },
       }),
   );
@@ -294,16 +286,17 @@ async function runProjectCommand(
 async function runInitCommand(
   output: vscode.OutputChannel,
   reload: () => Promise<void>,
+  locator: ProjectLocator,
 ): Promise<void> {
-  const folder = vscode.workspace.workspaceFolders?.[0];
-  if (folder === undefined) {
+  const target = locator.initTarget();
+  if (target === undefined) {
     void vscode.window.showErrorMessage('OCX: open a folder before running ocx init.');
     return;
   }
   const config = readConfig();
   const result = await runInit({
     executable: config.executable,
-    cwd: folder.uri.fsPath,
+    cwd: target.dir,
     env: { ...process.env, ...config.extraEnv },
   });
   if (!result.ok) {
@@ -316,6 +309,5 @@ async function runInitCommand(
     return;
   }
   await reload();
-  const tomlUri = vscode.Uri.joinPath(folder.uri, 'ocx.toml');
-  void vscode.window.showTextDocument(tomlUri);
+  void vscode.window.showTextDocument(target.manifest);
 }
