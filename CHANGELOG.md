@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-11
+
 ### Added
 
 - **`list` environment variables** — support for the third `ocx` env modifier
@@ -74,7 +76,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project tooling: esbuild bundling, `@vscode/test-cli` integration tests,
   ESLint flat config + Prettier, and GitHub Actions CI/release.
 
-[Unreleased]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ocx-sh/vscode-ocx/releases/tag/v0.1.0
