@@ -1,37 +1,119 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/ocx-sh/vscode-ocx/blob/main/schemas/ocx.toml.schema.json",
-  "title": "OCX project configuration (ocx.toml)",
-  "description": "Schema for OCX project files. Tools are declared by binding name and resolved to OCI registry identifiers; resolved digests are pinned separately in ocx.lock.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "VENDORED from ocx-sh/ocx v0.5.8 — generated with `cargo run -p ocx_schema -- project`. Do not hand-edit the structure; regenerate when the ocx project config changes. ONE local overlay is applied on top of the generated document: `$defs/Identifier` carries a `pattern`, which upstream omits because the CLI validates registry-qualification on a second parse pass. Without it the editor would stop flagging bare-tag bindings such as `go-task = \"latest\"`. Preserve that overlay across regenerations. Draft 2020-12 is confirmed working with Even Better TOML (taplo) 0.21 — do not downgrade it to draft-07.",
+  "title": "ProjectConfig",
+  "description": "Project-tier configuration parsed from `ocx.toml`.\n\nSchema follows ADR \"Project-Level Toolchain Config\" decision 1A:\nflat `[tools]` table as the implicit default group, plus additive\n`[group.<name>]` tables for optional named groups. Values are\nregistry-qualified [`Identifier`] strings of the form\n`registry/repo[:tag][@digest]`. Bare-tag forms (no registry, e.g.\n`cmake = \"3.28\"`) are rejected with\n[`super::error::ProjectErrorKind::ToolValueMissingRegistry`].\n\nBare-repo entries with no tag and no digest (e.g.\n`cmake = \"ocx.sh/cmake\"`) parse with `:latest` injected at the\nschema boundary — see [`parse_tool_value`] for the contract. The\ndefault does not apply to digest-pinned entries\n(`tool = \"ghcr.io/acme/tool@sha256:...\"`); the digest is the\ncanonical pin.\n\n`#[serde(deny_unknown_fields)]` is enforced at the struct level so\nschema drift in consumer `ocx.toml` files surfaces as a parse error\nrather than silent ignore.\n\nPhase 2.1 NOTE: the `platforms` field is removed in this revision.\nThe effective platform set is sourced ambient from the project tier\n(currently the canonical five-platform set) until ADR-driven\nper-tool platform overrides land.",
   "type": "object",
-  "additionalProperties": false,
   "properties": {
     "tools": {
+      "description": "Tools in the reserved `default` group (the top-level `[tools]`\ntable in `ocx.toml`). Values are fully-qualified\n[`Identifier`]s.",
       "type": "object",
-      "title": "Tool bindings",
-      "description": "Map of binding name to an OCI identifier. Example: go-task = \"ocx.sh/go-task:latest\".",
       "additionalProperties": {
-        "$ref": "#/definitions/identifier"
-      }
+        "$ref": "#/$defs/Identifier"
+      },
+      "default": {}
+    },
+    "env": {
+      "description": "Environment variables for the default group; `[env]` in TOML.\n\nStanding in the same relation to `[group.<name>.env]` that `[tools]`\ndoes to `[group.<name>.tools]`. Excluded from\n[`super::declaration_hash`] — it does not change *which* packages\nresolve, so an env edit must not force a re-lock.",
+      "$ref": "#/$defs/ProjectEnv"
     },
     "group": {
+      "description": "Named additive groups; `[group.<name>]` in TOML. `default` is\nreserved — a literal `[group.default]` declaration is a parse\nerror (enforced at parse time, not at the serde layer).\n\nThe Rust field is plural, the TOML table singular: `[group.<name>]`\nis what users write. Do not rename the wire key.",
       "type": "object",
-      "title": "Tool groups",
-      "description": "Named groups of tool bindings (e.g. [group.ci]). Each group maps binding names to OCI identifiers.",
       "additionalProperties": {
-        "type": "object",
-        "additionalProperties": {
-          "$ref": "#/definitions/identifier"
-        }
-      }
+        "$ref": "#/$defs/Group"
+      },
+      "default": {}
+    },
+    "package": {
+      "description": "Per-package resolve-time settings; `[package.\"<id>\"]` in TOML. Keyed by\nthe canonical author string (registry/repo[:tag]) so Serialize\nround-trips byte-faithfully. Currently carries the `no-patches` opt-out.\n\nThis is RESOLVE-TIME POLICY, not a tool-binding declaration: it is\ndeliberately excluded from [`super::declaration_hash`] (a `no-patches`\nedit must not invalidate `ocx.lock`).",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/PackageSettings"
+      },
+      "default": {}
     }
   },
-  "definitions": {
-    "identifier": {
+  "additionalProperties": false,
+  "$defs": {
+    "Identifier": {
+      "description": "OCI identifier in the format 'registry/repository[:tag][@digest]'.",
       "type": "string",
-      "title": "OCI identifier",
-      "description": "An OCI reference of the form registry/repository[:tag][@sha256:<digest>], e.g. \"ocx.sh/nodejs:24\" or \"ocx.sh/go-task@sha256:…\". A registry/repository path is required (a bare tag is not a valid identifier).",
       "pattern": "^[^\\s/@]+/[^\\s]+$"
+    },
+    "ProjectEnv": {
+      "description": "Environment variables applied to tools run from this project. Keys matching OCX_* or __OCX_* are rejected: a checked-in file must not be able to reconfigure how ocx itself resolves. Values are literal — no interpolation.",
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "description": "Shorthand for a constant: replaces any existing value of the variable.",
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "description": "`constant` replaces the variable's value; `path` prepends to it; `list` appends to it.",
+                "$ref": "#/$defs/ModifierKind"
+              },
+              "separator": {
+                "description": "For `list` only: the string this contribution is joined to the variable's existing value with. Omit it to inherit whatever separator another contributor to the same key declared, or a single space if none did.",
+                "type": "string"
+              },
+              "value": {
+                "description": "The literal value. For `path`, a relative value resolves against the project root; an absolute one passes through.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "value"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "ModifierKind": {
+      "description": "How a declared value combines with the variable's existing value.",
+      "type": "string",
+      "enum": [
+        "path",
+        "constant",
+        "list"
+      ]
+    },
+    "Group": {
+      "description": "A named group's body: `[group.<name>.tools]` and `[group.<name>.env]`.\n\nExactly two optional sub-tables, nothing else. A tool binding written\ndirectly under `[group.<name>]` is a parse error\n([`ProjectErrorKind::GroupHoldsDirectBinding`]) — one place bindings can\nlive, so nothing merges and nothing can collide across spellings.\n\nA tool literally named `env` or `tools` needs no special handling: it is\njust a key inside [`Self::tools`], which is a plain map.",
+      "type": "object",
+      "properties": {
+        "tools": {
+          "description": "Tool bindings for this group. Values are fully-qualified\n[`Identifier`]s, validated on the second parse pass exactly as\n`[tools]` is.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Identifier"
+          }
+        },
+        "env": {
+          "description": "Environment variables applied when this group is selected.\n\nSkipped when empty so `ocx add -g ci` never writes a bare\n`[group.ci.env]` into a file that declares none.",
+          "$ref": "#/$defs/ProjectEnv"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PackageSettings": {
+      "description": "Per-package resolve-time settings declared in `ocx.toml` under\n`[package.\"<registry/repo[:tag]>\"]`.\n\nCurrently carries a single opt-out: `no-patches = true` declines the\nsite-tier companion overlay for that base — EXCEPT a system-required patch\nstill applies (enforcement beats opt-out, C7). The opt-out is\nversion-independent: it keys on canonical `registry/repository` and applies\nto every installed version.\n\n`#[serde(deny_unknown_fields)]` so a typo in a `[package.*]` key's body\nsurfaces as a parse error rather than a silent no-op.",
+      "type": "object",
+      "properties": {
+        "no-patches": {
+          "description": "Decline the site-tier companion overlay for this base.\n\nA system-required patch still applies (enforcement beats opt-out).",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
     }
-  }
+  },
+  "$id": "https://ocx.sh/schemas/project/v1.json"
 }

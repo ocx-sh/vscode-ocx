@@ -2,6 +2,6 @@
 # workspace-ROOT ocx.toml, never this one. A distinct tool set makes a wrong
 # pick obvious. See src/test/extension.test.ts (root-discovery regression).
 [tools]
-ripgrep = "ocx.sh/ripgrep:latest"
+shellcheck = "ocx.sh/shellcheck/shellcheck:0.11"
 
 [group]

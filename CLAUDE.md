@@ -20,7 +20,9 @@ workspace `ocx.toml`, shells out to `ocx env`, and injects the composed
 (reload, reset, restartExtensions, showOutput, init) plus project-lifecycle
 subcommands that shell out to `ocx` (lock, pull, upgrade, clean). Also a status
 bar item, file-watch reload, workspace-trust gating, `ocx.toml` schema
-validation, a configurable group selector (`ocx.groups`, forwarded to
+validation (vendored from the CLI's generated project schema — covers `[env]`,
+group sub-tables, and `[package]`), all three env modifier kinds
+(`path`/`constant`/`list`), a configurable group selector (`ocx.groups`, forwarded to
 `ocx env`/`ocx pull` as `--group`), and a configurable project-file location
 (`ocx.project`; defaults to the workspace-root `ocx.toml`). Project discovery,
 file-watching, and the `--project` argument all derive from one `ProjectLocator`

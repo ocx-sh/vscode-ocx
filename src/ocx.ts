@@ -5,14 +5,21 @@ const execFileAsync = promisify(execFile);
 
 /**
  * The modifier kinds OCX emits — the serde `snake_case` rendering of
- * `ModifierKind` (`Path` | `Constant`) from `ocx_lib`. These are the ONLY two
- * supported values; any other `type` is rejected at parse time (see
+ * `ModifierKind` (`Path` | `Constant` | `List`) from `ocx_lib`. These are the
+ * ONLY three supported values; any other `type` is rejected at parse time (see
  * {@link parseEnvJson}). The wire format is documented to allow future modifier
- * kinds, so rejection — not silent passthrough — is the deliberate contract.
+ * kinds, so rejection — not silent passthrough — is the deliberate contract: a
+ * partially-understood environment is worse than none.
  */
-export type EnvEntryType = 'path' | 'constant';
+export type EnvEntryType = 'path' | 'constant' | 'list';
 
-const ENV_ENTRY_TYPES: ReadonlySet<string> = new Set<EnvEntryType>(['path', 'constant']);
+const ENV_ENTRY_TYPES: ReadonlySet<string> = new Set<EnvEntryType>(['path', 'constant', 'list']);
+
+/**
+ * Separator a `list` entry falls back to when `ocx` emits none. Mirrors
+ * `ocx_lib` `package::metadata::env::list::DEFAULT_SEPARATOR`.
+ */
+export const LIST_DEFAULT_SEPARATOR = ' ';
 
 /** A single composed-environment entry as emitted by `ocx --format json env`. */
 export interface EnvEntry {
@@ -22,9 +29,17 @@ export interface EnvEntry {
   readonly value: string;
   /**
    * `"path"` ⇒ prepend `value` to the path-like variable `key`. `"constant"` ⇒
-   * replace `key` with `value`.
+   * replace `key` with `value`. `"list"` ⇒ append `value`, joined by
+   * {@link separator}, dropping any earlier occurrence of the same value.
    */
   readonly type: EnvEntryType;
+  /**
+   * Join string for a `type: "list"` entry — present on those and only those.
+   * `ocx` omits the field entirely for the other kinds (`skip_serializing_if`)
+   * and may omit it on a list whose author declared none, in which case it is
+   * defaulted to {@link LIST_DEFAULT_SEPARATOR} here. Guaranteed non-empty.
+   */
+  readonly separator?: string;
 }
 
 /**
@@ -61,7 +76,7 @@ export interface RunEnvOptions {
  *
  * Layout: `--format json --project <p> env [--group <g>]…`. The global
  * `--format`/`--project` flags MUST precede the `env` subcommand (verified
- * against `ocx` 0.3.7 — a per-subcommand `--project` is rejected); a group
+ * against `ocx` 0.5.8 — a per-subcommand `--project` is rejected); a group
  * selector is a **subcommand** flag and therefore follows `env`, mirroring the
  * `ocx run`/`ocx pull` convention (`-g`/`--group`, one selector per token).
  *
@@ -255,9 +270,40 @@ function toEntry(item: unknown): EnvEntry {
     throw new Error('ocx env: entry key/value/type must be strings');
   }
   if (!isEnvEntryType(type)) {
-    throw new Error(`ocx env: unsupported entry type "${type}" (expected "path" or "constant")`);
+    throw new Error(
+      `ocx env: unsupported entry type "${type}" (expected "path", "constant" or "list")`,
+    );
+  }
+  // `separator` is meaningful for `list` alone. On any other kind the CLI
+  // already rejects it (`EnvSeparatorOnNonList`), so it is ignored rather than
+  // re-validated here — and building the property only in this branch keeps
+  // `exactOptionalPropertyTypes` happy.
+  if (type === 'list') {
+    return { key, value, type, separator: toSeparator(item) };
   }
   return { key, value, type };
+}
+
+/**
+ * Read a `list` entry's separator, defaulting an omitted one.
+ *
+ * The non-empty check is load-bearing, not cosmetic: an empty separator would
+ * make the dedupe fold in `computeEnvPlan` spin forever. `ocx` guarantees a
+ * non-empty separator, so this is the trust boundary catching a malformed or
+ * hostile payload before it hangs the extension host.
+ */
+function toSeparator(item: object): string {
+  if (!('separator' in item)) {
+    return LIST_DEFAULT_SEPARATOR;
+  }
+  const { separator } = item;
+  if (typeof separator !== 'string') {
+    throw new Error('ocx env: list entry separator must be a string');
+  }
+  if (separator.length === 0) {
+    throw new Error('ocx env: list entry separator must not be empty');
+  }
+  return separator;
 }
 
 function isEnvEntryType(type: string): type is EnvEntryType {

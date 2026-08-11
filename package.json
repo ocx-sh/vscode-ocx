@@ -2,7 +2,7 @@
   "name": "ocx",
   "displayName": "OCX",
   "description": "VS Code support for OCX — the OCI-registry-backed binary package manager.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "ocx-sh",
   "license": "Apache-2.0",
   "engines": {
@@ -170,7 +170,7 @@
     "@types/node": "^25.9.3",
     "@types/vscode": "^1.96.0",
     "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^3.0.0",
+    "@vscode/test-electron": "3.1.0",
     "@vscode/vsce": "^3.2.1",
     "ajv": "^8.17.1",
     "esbuild": "^0.28.1",

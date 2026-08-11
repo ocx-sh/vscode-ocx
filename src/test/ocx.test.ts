@@ -121,6 +121,53 @@ suite('parseEnvJson', () => {
     ]);
   });
 
+  test('parses a list entry with its separator', () => {
+    const entries = parseEnvJson(
+      JSON.stringify({
+        entries: [{ key: 'GODEBUG', value: 'gctrace=1', type: 'list', separator: ',' }],
+      }),
+    );
+    assert.deepStrictEqual(entries, [
+      { key: 'GODEBUG', value: 'gctrace=1', type: 'list', separator: ',' },
+    ]);
+  });
+
+  test('defaults an omitted list separator to a single space', () => {
+    const entries = parseEnvJson(
+      JSON.stringify({ entries: [{ key: 'JDK_JAVA_OPTIONS', value: '-Xmx2g', type: 'list' }] }),
+    );
+    assert.deepStrictEqual(entries, [
+      { key: 'JDK_JAVA_OPTIONS', value: '-Xmx2g', type: 'list', separator: ' ' },
+    ]);
+  });
+
+  test('rejects an empty list separator (it would never terminate the fold)', () => {
+    assert.throws(
+      () =>
+        parseEnvJson(
+          JSON.stringify({ entries: [{ key: 'X', value: '1', type: 'list', separator: '' }] }),
+        ),
+      /separator must not be empty/,
+    );
+  });
+
+  test('rejects a non-string list separator', () => {
+    assert.throws(
+      () =>
+        parseEnvJson(
+          JSON.stringify({ entries: [{ key: 'X', value: '1', type: 'list', separator: 1 }] }),
+        ),
+      /separator must be a string/,
+    );
+  });
+
+  test('ignores a separator on a non-list entry (the CLI already rejects it)', () => {
+    const entries = parseEnvJson(
+      JSON.stringify({ entries: [{ key: 'X', value: '1', type: 'constant', separator: ',' }] }),
+    );
+    assert.deepStrictEqual(entries, [{ key: 'X', value: '1', type: 'constant' }]);
+  });
+
   test('rejects an unsupported entry type', () => {
     assert.throws(
       () => parseEnvJson(JSON.stringify({ entries: [{ key: 'X', value: '1', type: 'plain' }] })),

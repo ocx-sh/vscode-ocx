@@ -142,10 +142,44 @@ This extension contributes a JSON Schema for `ocx.toml` via the
 (`tamasfe.even-better-toml`). Install it for completion, hover, and diagnostics
 on `ocx.toml`. It is listed in the workspace's recommended extensions.
 
+The schema is vendored from the `ocx` CLI's own generated project schema, so it
+covers `[tools]`, `[env]`, `[group.<name>.tools]`, `[group.<name>.env]`, and
+`[package."<id>"]`.
+
+## Environment variables
+
+`ocx.toml` declares environment variables in `[env]` (and per group in
+`[group.<name>.env]`). A bare string is a constant; a table names its modifier:
+
+```toml
+[env]
+CI = "1"                                              # constant
+JAVA_OPTS = { type = "constant", value = "-Xmx2g" }   # same, explicit
+PATH = { type = "path", value = "node_modules/.bin" }
+GODEBUG = { type = "list", separator = ",", value = "gctrace=1" }
+JDK_JAVA_OPTIONS = { type = "list", value = "-Xmx2g" }
+```
+
+| Modifier | Effect |
+| --- | --- |
+| `constant` | Replaces the variable's value |
+| `path` | Prepends, using the OS path delimiter; an earlier copy moves to the front |
+| `list` | Appends, using `separator`; an earlier copy moves to the back |
+
+A `list` separator is agreed per variable across the whole composition: the first
+contributor that declares one sets it, later contributors that omit it inherit
+it, and two conflicting explicit separators are an error in `ocx`. When nobody
+declares one, it is a single space.
+
+Composed values reach the extension host, and — with
+`ocx.env.applyToTerminals` on — terminals and tasks. Terminal mutators use the
+editor's prepend/append primitives, which cannot express the de-duplication, so
+a value already present in your shell profile may appear twice there.
+
 ## Requirements
 
 The `ocx` CLI must be installed and resolvable. Set `ocx.path.executable` if it
-is not on `PATH`.
+is not on `PATH`. The `list` modifier needs `ocx` 0.5.6 or newer.
 
 ## Contributing
 

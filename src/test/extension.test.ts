@@ -9,14 +9,17 @@ import type { OcxApi } from '../extension';
 
 const STUB_PATH_DIR = '/ocx-test-bin';
 const STUB_SCALAR = 'OCX_TEST_SCALAR';
+const STUB_LIST_KEY = 'OCX_TEST_LIST';
 const STUB_BAD_DIR = '/ocx-bad-bin';
 const STUB_BAD_KEY = 'OCX_BAD_VAR';
 
-// Fixed env emitted by the stub, in the real `ocx --format json env` shape.
+// Fixed env emitted by the stub, in the real `ocx --format json env` shape —
+// one entry per modifier kind, `separator` present on the list one only.
 const STUB_JSON = JSON.stringify({
   entries: [
     { key: 'PATH', value: STUB_PATH_DIR, type: 'path' },
     { key: STUB_SCALAR, value: 'scalar-value', type: 'constant' },
+    { key: STUB_LIST_KEY, value: 'gctrace=1', type: 'list', separator: ',' },
   ],
 });
 
@@ -155,6 +158,38 @@ suite('OCX extension', () => {
       undefined,
       'no scalar terminal mutator should be set when applyToTerminals is off',
     );
+  });
+
+  test('reload folds a list entry into process.env and appends it to terminals', async function () {
+    if (isWindows) {
+      this.skip();
+    }
+    // Drop any env a previous reload injected: apply() restores its backup
+    // before composing, so a value seeded on top of a tracked key would be
+    // rolled back and never reach the fold.
+    api.reset();
+    const saved = process.env[STUB_LIST_KEY];
+    process.env[STUB_LIST_KEY] = 'gctrace=1,madvdontneed=1';
+    await setApplyToTerminals(true);
+    try {
+      await api.reload();
+
+      // Unique append: the already-present contribution moves to the back.
+      assert.strictEqual(process.env[STUB_LIST_KEY], 'madvdontneed=1,gctrace=1');
+
+      const listMutator = api.environmentVariableCollection.get(STUB_LIST_KEY);
+      assert.ok(listMutator, 'a list terminal mutator should be set');
+      assert.strictEqual(listMutator.type, vscode.EnvironmentVariableMutatorType.Append);
+      assert.strictEqual(listMutator.value, ',gctrace=1');
+    } finally {
+      await setApplyToTerminals(undefined);
+      api.reset();
+      if (saved === undefined) {
+        delete process.env[STUB_LIST_KEY];
+      } else {
+        process.env[STUB_LIST_KEY] = saved;
+      }
+    }
   });
 
   test('applyToTerminals=true injects terminal mutators', async function () {

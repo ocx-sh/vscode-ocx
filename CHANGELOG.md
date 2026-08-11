@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-11
+
+### Added
+
+- **`list` environment variables** — support for the third `ocx` env modifier
+  (`ocx` 0.5.6+): a contribution is appended to the variable, joined by its own
+  separator, with any earlier copy of the same value moved to the back. Composed
+  into the extension host and, when `ocx.env.applyToTerminals` is on, into
+  terminals and tasks. Previously an `ocx env` payload containing one rejected
+  the whole environment.
+
+### Changed
+
+- **`ocx.toml` schema** — now vendored from the `ocx` CLI's generated project
+  schema (v0.5.8) instead of hand-maintained. It gains `[env]`,
+  `[group.<name>.env]`, and `[package."<id>"]`, and correctly requires group
+  bindings to live in `[group.<name>.tools]` rather than directly under
+  `[group.<name>]`.
+
 ## [0.1.2] - 2026-06-19
 
 ### Added
@@ -57,7 +76,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project tooling: esbuild bundling, `@vscode/test-cli` integration tests,
   ESLint flat config + Prettier, and GitHub Actions CI/release.
 
-[Unreleased]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ocx-sh/vscode-ocx/releases/tag/v0.1.0

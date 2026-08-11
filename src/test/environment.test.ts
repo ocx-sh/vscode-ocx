@@ -71,6 +71,92 @@ suite('computeEnvPlan', () => {
     ]);
   });
 
+  test('list appends to an empty variable with no leading separator', () => {
+    const plan = computeEnvPlan(
+      [{ key: 'GODEBUG', value: 'gctrace=1', type: 'list', separator: ',' }],
+      {},
+      ':',
+    );
+    assert.strictEqual(plan.processOps.find((op) => op.key === 'GODEBUG')?.value, 'gctrace=1');
+  });
+
+  test('list appends behind an existing baseline value', () => {
+    const plan = computeEnvPlan(
+      [{ key: 'GODEBUG', value: 'gctrace=1', type: 'list', separator: ',' }],
+      { GODEBUG: 'madvdontneed=1' },
+      ':',
+    );
+    assert.strictEqual(
+      plan.processOps.find((op) => op.key === 'GODEBUG')?.value,
+      'madvdontneed=1,gctrace=1',
+    );
+  });
+
+  test('list moves a duplicate to the back rather than adding a second copy', () => {
+    const plan = computeEnvPlan(
+      [{ key: 'GODEBUG', value: 'gctrace=1', type: 'list', separator: ',' }],
+      { GODEBUG: 'gctrace=1,madvdontneed=1' },
+      ':',
+    );
+    assert.strictEqual(
+      plan.processOps.find((op) => op.key === 'GODEBUG')?.value,
+      'madvdontneed=1,gctrace=1',
+    );
+  });
+
+  test('list drops adjacent duplicates that only meet once an earlier one is removed', () => {
+    const plan = computeEnvPlan(
+      [{ key: 'K', value: 'x', type: 'list', separator: ',' }],
+      { K: 'x,x,a' },
+      ':',
+    );
+    assert.strictEqual(plan.processOps.find((op) => op.key === 'K')?.value, 'a,x');
+  });
+
+  test('list with an all-duplicate baseline collapses to the bare value', () => {
+    const plan = computeEnvPlan(
+      [{ key: 'K', value: 'x', type: 'list', separator: ',' }],
+      { K: 'x' },
+      ':',
+    );
+    assert.strictEqual(plan.processOps.find((op) => op.key === 'K')?.value, 'x');
+  });
+
+  test('two list entries on one key append in array order', () => {
+    const plan = computeEnvPlan(
+      [
+        { key: 'K', value: 'a', type: 'list', separator: ',' },
+        { key: 'K', value: 'b', type: 'list', separator: ',' },
+      ],
+      {},
+      ':',
+    );
+    assert.strictEqual(plan.processOps.find((op) => op.key === 'K')?.value, 'a,b');
+  });
+
+  test('list falls back to a single space when the entry carries no separator', () => {
+    const plan = computeEnvPlan(
+      [{ key: 'JDK_JAVA_OPTIONS', value: '-Xmx2g', type: 'list' }],
+      { JDK_JAVA_OPTIONS: '-Xms1g' },
+      ':',
+    );
+    assert.strictEqual(
+      plan.processOps.find((op) => op.key === 'JDK_JAVA_OPTIONS')?.value,
+      '-Xms1g -Xmx2g',
+    );
+  });
+
+  test('list emits an append collection op carrying the leading separator', () => {
+    const plan = computeEnvPlan(
+      [{ key: 'GODEBUG', value: 'gctrace=1', type: 'list', separator: ',' }],
+      {},
+      ':',
+    );
+    assert.deepStrictEqual(plan.collectionOps, [
+      { kind: 'append', key: 'GODEBUG', value: ',gctrace=1' },
+    ]);
+  });
+
   test('same key, constant then path: path prepends onto the constant value', () => {
     const plan = computeEnvPlan(
       [
@@ -181,6 +267,9 @@ class FakeCollection {
   prepend(key: string, value: string): void {
     this.ops.push({ kind: 'prepend', key, value });
   }
+  append(key: string, value: string): void {
+    this.ops.push({ kind: 'append', key, value });
+  }
   replace(key: string, value: string): void {
     this.ops.push({ kind: 'replace', key, value });
   }
@@ -251,6 +340,25 @@ suite('EnvManager apply/reset (fakes)', () => {
     assert.strictEqual(manager.apply(entries, { applyToTerminals: false }).changed, false);
 
     manager.reset();
+  });
+
+  test('apply folds a list entry into process.env and appends to the collection', () => {
+    const collection = new FakeCollection();
+    const manager = new EnvManager(
+      collection as unknown as vscode.GlobalEnvironmentVariableCollection,
+      new FakeMemento(),
+    );
+    process.env[SCALAR] = 'a,b';
+
+    manager.apply([{ key: SCALAR, value: 'a', type: 'list', separator: ',' }], {
+      applyToTerminals: true,
+    });
+
+    assert.strictEqual(process.env[SCALAR], 'b,a');
+    assert.deepStrictEqual(collection.ops, [{ kind: 'append', key: SCALAR, value: ',a' }]);
+
+    manager.reset();
+    assert.strictEqual(process.env[SCALAR], 'a,b');
   });
 
   test('applyToTerminals: false skips collection mutations', () => {
