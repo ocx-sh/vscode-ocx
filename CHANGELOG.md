@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`list` environment variables** — support for the third `ocx` env modifier
+  (`ocx` 0.5.6+): a contribution is appended to the variable, joined by its own
+  separator, with any earlier copy of the same value moved to the back. Composed
+  into the extension host and, when `ocx.env.applyToTerminals` is on, into
+  terminals and tasks. Previously an `ocx env` payload containing one rejected
+  the whole environment.
+
+### Changed
+
+- **`ocx.toml` schema** — now vendored from the `ocx` CLI's generated project
+  schema (v0.5.8) instead of hand-maintained. It gains `[env]`,
+  `[group.<name>.env]`, and `[package."<id>"]`, and correctly requires group
+  bindings to live in `[group.<name>.tools]` rather than directly under
+  `[group.<name>]`.
+
 ## [0.1.2] - 2026-06-19
 
 ### Added

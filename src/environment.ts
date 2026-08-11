@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 
-import type { EnvEntry } from './ocx';
+import { LIST_DEFAULT_SEPARATOR, type EnvEntry } from './ocx';
 
 /** A final value to set into `process.env`. */
 export interface ProcessEnvOp {
@@ -11,9 +11,12 @@ export interface ProcessEnvOp {
 
 /** A mutation to apply to an `EnvironmentVariableCollection`. */
 export interface CollectionOp {
-  readonly kind: 'prepend' | 'replace';
+  readonly kind: 'prepend' | 'replace' | 'append';
   readonly key: string;
-  /** For `prepend` this already includes the trailing path delimiter. */
+  /**
+   * For `prepend` this already includes the trailing path delimiter; for
+   * `append`, the leading list separator.
+   */
   readonly value: string;
 }
 
@@ -21,10 +24,46 @@ export interface CollectionOp {
 export interface EnvPlan {
   /** Final `key=value` assignments for `process.env`, one per touched key. */
   readonly processOps: readonly ProcessEnvOp[];
-  /** Ordered terminal-collection mutations (prepend for `path`, replace for `constant`). */
+  /**
+   * Ordered terminal-collection mutations: prepend for `path`, replace for
+   * `constant`, append for `list`.
+   */
   readonly collectionOps: readonly CollectionOp[];
   /** Every variable name affected (for backup/restore). */
   readonly touchedKeys: readonly string[];
+}
+
+/**
+ * Append `value` to `existing`, joined by `separator`, having first removed
+ * every earlier occurrence of `value` — a *move-to-back*, not a
+ * skip-if-present. Byte-identical to `ocx_lib` `utility::list::append_unique`
+ * (pinned by the upstream env-modifier ADR), so a terminal composed by `ocx`
+ * and one composed here agree.
+ *
+ * The fold wraps the existing value in the separator so first and last elements
+ * match the same needle, collapses `sep+value+sep` to `sep` until no match is
+ * left, then unwraps. The single `replace` in a loop is deliberate:
+ * `replaceAll` misses duplicates that only become adjacent once an earlier one
+ * is removed.
+ *
+ * `separator` must be non-empty — an empty one never terminates. That is
+ * enforced at the wire boundary when the entry is parsed (see `src/ocx.ts`).
+ */
+export function appendUnique(
+  existing: string | undefined,
+  value: string,
+  separator: string,
+): string {
+  if (!existing) {
+    return value;
+  }
+  const needle = separator + value + separator;
+  let wrapped = separator + existing + separator;
+  while (wrapped.includes(needle)) {
+    wrapped = wrapped.replace(needle, separator);
+  }
+  const remainder = wrapped.slice(separator.length, wrapped.length - separator.length);
+  return remainder ? remainder + separator + value : value;
 }
 
 /**
@@ -32,9 +71,17 @@ export interface EnvPlan {
  * no I/O, so it is unit-testable without the extension host (SRP).
  *
  * `type: "path"` entries prepend `value + delimiter` to the variable;
- * `type: "constant"` entries replace it. Applying entries in array order mirrors
+ * `type: "constant"` entries replace it; `type: "list"` entries append `value`
+ * joined by the entry's separator, moving any earlier occurrence to the back
+ * (see {@link appendUnique}). Applying entries in array order mirrors
  * `ocx env --shell=bash` emitting `export PATH="dir:${PATH}"` per line: the last
- * path entry ends up first on `PATH`. Entries of either kind may target any key.
+ * path entry ends up first on `PATH`. Entries of any kind may target any key.
+ *
+ * The terminal collection gets `append` for a `list` entry, mirroring the
+ * `prepend` a `path` entry gets: `EnvironmentVariableCollection` has no
+ * mutator that can express the dedupe fold, and `replace` would clobber a value
+ * the user set in their own shell profile. A duplicate list element is
+ * cosmetic; a clobbered one is not.
  *
  * @param baselineEnv pre-injection environment (so repeated calls don't stack).
  * @param delimiter   path separator (defaults to the platform's `path.delimiter`).
@@ -64,6 +111,12 @@ export function computeEnvPlan(
       case 'constant': {
         working.set(entry.key, entry.value);
         collectionOps.push({ kind: 'replace', key: entry.key, value: entry.value });
+        break;
+      }
+      case 'list': {
+        const separator = entry.separator ?? LIST_DEFAULT_SEPARATOR;
+        working.set(entry.key, appendUnique(current(entry.key), entry.value, separator));
+        collectionOps.push({ kind: 'append', key: entry.key, value: separator + entry.value });
         break;
       }
       default: {
@@ -157,10 +210,16 @@ export class EnvManager {
     }
     if (opts.applyToTerminals) {
       for (const op of plan.collectionOps) {
-        if (op.kind === 'prepend') {
-          this.collection.prepend(op.key, op.value, MUTATOR_OPTIONS);
-        } else {
-          this.collection.replace(op.key, op.value, MUTATOR_OPTIONS);
+        switch (op.kind) {
+          case 'prepend':
+            this.collection.prepend(op.key, op.value, MUTATOR_OPTIONS);
+            break;
+          case 'append':
+            this.collection.append(op.key, op.value, MUTATOR_OPTIONS);
+            break;
+          case 'replace':
+            this.collection.replace(op.key, op.value, MUTATOR_OPTIONS);
+            break;
         }
       }
     }
