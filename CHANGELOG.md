@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Environment loading on `ocx` 0.6.6+** — `ocx env` renamed its JSON keys
+  (`entries` to `items`, per-entry `type` to `kind`, plus `schema_version`), so
+  no environment loaded at all (`missing "entries"`). Both shapes are accepted.
+
+### Added
+
+- **`OCX: Update Tools`** (`ocx.update`) — runs `ocx update` to re-resolve the
+  declared tags against the registry and rewrite `ocx.lock`.
+
+### Changed
+
+- **`OCX: Upgrade Tools`** — documented correctly: `ocx upgrade` (`ocx` 0.6.5+)
+  edits `ocx.toml`, moving declared tags to the newest published release, then
+  re-locks. On older `ocx` the command fails with a hint pointing at Update Tools.
+- **`ocx.groups`** is now also forwarded as `--group` to `ocx update` and
+  `ocx upgrade`.
+- **`ocx.toml` schema** — re-vendored from `ocx` v0.6.8 (was v0.5.8). It now
+  accepts root `lazy-mode`, `lazy-report`, `activate`, `pinned`, `[trust]`
+  (`[[trust.policy]]`, `[trust.sigstore]`), `lazy-mode` on groups and packages,
+  and group bindings of the form `{ from = "default" }`.
+- **Tested `ocx` range** — 0.5.8 – 0.6.8.
+
 ## [0.1.3] - 2026-08-11
 
 ### Added

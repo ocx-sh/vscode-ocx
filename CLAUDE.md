@@ -16,14 +16,15 @@ package browsing, and CLI task running are still planned.
 **Environment injection + project-lifecycle commands shipped.** Activates on a
 workspace `ocx.toml`, shells out to `ocx env`, and injects the composed
 `PATH`/vars into the extension host (always) and — opt-in — integrated terminals
-(`ocx.env.applyToTerminals`, default off). Ships nine commands: environment
+(`ocx.env.applyToTerminals`, default off). Ships ten commands: environment
 (reload, reset, restartExtensions, showOutput, init) plus project-lifecycle
-subcommands that shell out to `ocx` (lock, pull, upgrade, clean). Also a status
+subcommands that shell out to `ocx` (lock, pull, update, upgrade, clean; `upgrade` edits `ocx.toml`, needs ocx 0.6.5+). Also a status
 bar item, file-watch reload, workspace-trust gating, `ocx.toml` schema
 validation (vendored from the CLI's generated project schema — covers `[env]`,
 group sub-tables, and `[package]`), all three env modifier kinds
 (`path`/`constant`/`list`), a configurable group selector (`ocx.groups`, forwarded to
-`ocx env`/`ocx pull` as `--group`), and a configurable project-file location
+`ocx env`/`pull`/`update`/`upgrade` as `--group`), accepts both `ocx env` JSON
+shapes (ocx 0.5.8–0.6.8), and a configurable project-file location
 (`ocx.project`; defaults to the workspace-root `ocx.toml`). Project discovery,
 file-watching, and the `--project` argument all derive from one `ProjectLocator`
 (`src/project.ts`). Toolchain binaries run via built-in `shell`

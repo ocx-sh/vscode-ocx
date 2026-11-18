@@ -20,8 +20,8 @@ declares.
   (`ocx.restart.automatic` to skip the prompt).
 - **Terminals & tasks** *(opt-in)* — enable `ocx.env.applyToTerminals` and
   **newly opened** terminals and tasks get the OCX `PATH`.
-- **Run `ocx` from the palette** — resolve the lockfile, pull, upgrade, and
-  clean without leaving the editor (see [Commands](#commands)).
+- **Run `ocx` from the palette** — resolve the lockfile, pull, update, upgrade,
+  and clean without leaving the editor (see [Commands](#commands)).
 - **Live reload** — edits to `ocx.toml`/`ocx.lock` reload the environment
   (`ocx.watchForChanges`).
 - **Tool groups** *(opt-in)* — set `ocx.groups` to compose specific groups from
@@ -44,10 +44,11 @@ Run from the Command Palette (or bind to a key — see [Tasks & keybindings](#us
 | `OCX: Initialize ocx.toml` | Run `ocx init` in the workspace folder |
 | `OCX: Resolve Lockfile` | Run `ocx lock` — resolve tool tags to digests in `ocx.lock` |
 | `OCX: Pull Tools` | Run `ocx pull` — pre-warm the object store (forwards `ocx.groups` as `--group`) |
-| `OCX: Upgrade Tools` | Run `ocx upgrade` — re-resolve every locked tag to its newest digest |
+| `OCX: Update Tools` | Run `ocx update` — re-resolve the declared tags against the registry and rewrite `ocx.lock` (forwards `ocx.groups` as `--group`) |
+| `OCX: Upgrade Tools` | Run `ocx upgrade` (`ocx` 0.6.5+) — edit `ocx.toml`, moving declared tags to the newest published release, then re-lock (forwards `ocx.groups` as `--group`) |
 | `OCX: Clean Object Store` | Run `ocx clean` — remove unreferenced objects from the local store |
 
-The four `ocx` lifecycle commands run against the workspace `ocx.toml`, stream
+The five `ocx` lifecycle commands run against the workspace `ocx.toml`, stream
 output to the OCX channel, and (except `clean`) reload the environment afterward.
 
 ## Using OCX with tasks
@@ -131,7 +132,7 @@ Palette commands can't go in `tasks.json`, but they are bindable —
 | `ocx.watchForChanges` | `true` | Reload when `ocx.toml`/`ocx.lock` change |
 | `ocx.restart.automatic` | `false` | Restart the extension host automatically instead of prompting |
 | `ocx.env.applyToTerminals` | `false` | Inject the OCX `PATH` into terminals and tasks |
-| `ocx.groups` | `[]` | Tool groups to compose (passed to `ocx env`/`ocx pull` as `--group`) |
+| `ocx.groups` | `[]` | Tool groups to compose (passed to `ocx env`/`pull`/`update`/`upgrade` as `--group`) |
 | `ocx.extraEnv` | `{}` | Extra environment variables for the `ocx` child process |
 
 ## `ocx.toml` validation
@@ -142,9 +143,10 @@ This extension contributes a JSON Schema for `ocx.toml` via the
 (`tamasfe.even-better-toml`). Install it for completion, hover, and diagnostics
 on `ocx.toml`. It is listed in the workspace's recommended extensions.
 
-The schema is vendored from the `ocx` CLI's own generated project schema, so it
-covers `[tools]`, `[env]`, `[group.<name>.tools]`, `[group.<name>.env]`, and
-`[package."<id>"]`.
+The schema is vendored from the `ocx` CLI's own generated project schema
+(`ocx` v0.6.8), so it covers `[tools]`, `[env]`, `[group.<name>.tools]`,
+`[group.<name>.env]`, `[package."<id>"]`, `[trust]`, and the root keys
+`lazy-mode`, `lazy-report`, `activate`, and `pinned`.
 
 ## Environment variables
 
@@ -180,6 +182,14 @@ a value already present in your shell profile may appear twice there.
 
 The `ocx` CLI must be installed and resolvable. Set `ocx.path.executable` if it
 is not on `PATH`. The `list` modifier needs `ocx` 0.5.6 or newer.
+
+### Supported `ocx` versions
+
+Tested against `ocx` 0.5.8 – 0.6.8 (older versions are untested). Environment
+loading, `init`, `lock`, `pull`, `update`, `clean`, and `--group` selection work
+across that range; `OCX: Upgrade Tools` needs 0.6.5+. With `ocx.groups` empty,
+`OCX: Pull Tools` runs a bare `ocx pull`, which pulls every group on `ocx`
+≤ 0.6.5 but only the default group on ≥ 0.6.6 (an `ocx` change).
 
 ## Contributing
 
