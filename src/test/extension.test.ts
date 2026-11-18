@@ -143,6 +143,7 @@ suite('OCX extension', () => {
       'ocx.init',
       'ocx.lock',
       'ocx.pull',
+      'ocx.update',
       'ocx.upgrade',
       'ocx.clean',
     ]) {
@@ -380,6 +381,45 @@ suite('OCX extension', () => {
       assert.strictEqual(recorded[2], 'clean', 'the subcommand follows the global flags');
       assert.ok(!recorded.includes('--group'), 'clean never receives a --group selector');
     } finally {
+      await setExecutable(stubPath);
+      api.reset();
+    }
+  });
+
+  // `update` reloads afterwards, so a later `env` call would overwrite a
+  // last-call-wins args stub; this stub appends one block per invocation.
+  test('ocx.update runs --project <toml> update with --group per ocx.groups', async function () {
+    if (isWindows) {
+      this.skip();
+    }
+    api.reset();
+    const argsFile = path.join(tmpdir(), `ocx-args-update-${process.pid}`);
+    const stub = path.join(tmpdir(), `ocx-stub-update-${process.pid}.sh`);
+    writeFileSync(
+      stub,
+      `#!/bin/sh\nprintf '%s\\n' "$@" >> '${argsFile}'\nprintf -- '---\\n' >> '${argsFile}'\ncat <<'OCXJSON'\n${STUB_JSON}\nOCXJSON\n`,
+    );
+    chmodSync(stub, 0o755);
+    await setExecutable(stub);
+    await setGroups(['ci']);
+    try {
+      writeFileSync(argsFile, '');
+      await vscode.commands.executeCommand('ocx.update');
+
+      const calls = readFileSync(argsFile, 'utf8')
+        .split('---\n')
+        .map((block) => block.trim().split('\n'))
+        .filter((argv) => argv.includes('update'));
+      assert.strictEqual(calls.length, 1, 'exactly one update invocation');
+      assert.deepStrictEqual(calls[0], [
+        '--project',
+        rootProjectToml(),
+        'update',
+        '--group',
+        'ci',
+      ]);
+    } finally {
+      await setGroups(undefined);
       await setExecutable(stubPath);
       api.reset();
     }

@@ -132,6 +132,21 @@ export function isUnsupportedGroupFlag(message: string): boolean {
   return message.includes('--group') && message.includes('unexpected argument');
 }
 
+/**
+ * True when a failure says `subcommand` does not exist — i.e. the installed
+ * `ocx` predates it. ocx 0.5.8–0.6.4 reports `unknown subcommand 'upgrade'; if
+ * `ocx-upgrade` is an official OCX plugin, install it …`; clap's `unrecognized
+ * subcommand '…'` is accepted as a fallback. The quoted name is part of the
+ * match so an unrelated failure that merely mentions the word (`upgrade ocx`,
+ * `ocx-upgrade`) never triggers the hint.
+ */
+export function isUnsupportedSubcommand(message: string, subcommand: string): boolean {
+  return (
+    message.includes(`unknown subcommand '${subcommand}'`) ||
+    message.includes(`unrecognized subcommand '${subcommand}'`)
+  );
+}
+
 export interface RunInitOptions {
   readonly executable: string;
   /** Directory to create the `ocx.toml` in. */
@@ -153,22 +168,28 @@ export async function runInit(opts: RunInitOptions): Promise<OcxInitResult> {
  * Project-lifecycle `ocx` subcommands the extension exposes as palette commands.
  * Each operates on the discovered project `ocx.toml` and takes no required
  * argument. Deliberately excludes argument-taking, config-mutating subcommands
- * (`add`/`remove` need a `<IDENTIFIER>` and belong with `ocx.toml` authoring) and
- * non-existent ones — `ocx` has no `install`/`select`/`sync` (verified against
- * `ocx --help`). Modelled as a closed union so the switch on it stays exhaustive.
+ * (`add`/`remove` need a `<IDENTIFIER>` and belong with `ocx.toml` authoring).
+ *
+ * - `update` re-resolves declared tags against the registry and rewrites
+ *   `ocx.lock` (ocx 0.5.8+).
+ * - `upgrade` (ocx 0.6.5+) edits `ocx.toml`, moving declared tags to the newest
+ *   release, then re-locks. Older releases reject it as an unknown subcommand.
+ * - `pull`, `update` and `upgrade` accept `-g/--group`; `lock` and `clean` do not.
+ *
+ * Modelled as a closed union so a switch on it stays exhaustive.
  */
-export type ProjectSubcommand = 'lock' | 'pull' | 'upgrade' | 'clean';
+export type ProjectSubcommand = 'lock' | 'pull' | 'update' | 'upgrade' | 'clean';
 
 /**
  * Build the `ocx` argv for a project-lifecycle subcommand.
  *
  * Layout: `--project <p> <subcommand> [--group <g>…]`. The global `--project`
  * flag MUST precede the subcommand (same constraint as {@link buildEnvArgs}).
- * Only `pull` accepts a group selector (`ocx lock`/`upgrade`/`clean` have no
- * `--group`), so groups are forwarded for `pull` alone — one `--group <name>`
- * per entry (never comma-joined), mirroring {@link buildEnvArgs}. An empty group
- * list yields a bare `ocx pull`, whose own default is to pull every group. Pure
- * (no I/O) so it is unit-testable.
+ * `pull`, `update` and `upgrade` accept a group selector, so groups are forwarded
+ * to those alone (`lock`/`clean` have none) — one `--group <name>` per entry,
+ * never comma-joined, mirroring {@link buildEnvArgs}. An empty group list yields
+ * a bare subcommand, which on ocx >= 0.6.6 means the default group — the same
+ * set `ocx env` composes. Pure (no I/O) so it is unit-testable.
  */
 export function buildSubcommandArgs(
   projectToml: string,
@@ -176,7 +197,7 @@ export function buildSubcommandArgs(
   groups: readonly string[],
 ): string[] {
   const args = ['--project', projectToml, subcommand];
-  if (subcommand === 'pull') {
+  if (subcommand === 'pull' || subcommand === 'update' || subcommand === 'upgrade') {
     for (const group of groups) {
       args.push('--group', group);
     }

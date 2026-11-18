@@ -78,6 +78,11 @@
         "category": "OCX"
       },
       {
+        "command": "ocx.update",
+        "title": "Update Tools",
+        "category": "OCX"
+      },
+      {
         "command": "ocx.upgrade",
         "title": "Upgrade Tools",
         "category": "OCX"
@@ -129,7 +134,7 @@
             "type": "string"
           },
           "default": [],
-          "markdownDescription": "Tool groups to compose into the environment, passed to `ocx env` as `--group`. Each entry selects a group declared in `ocx.toml`: `default` is the implicit `[tools]` table, a name like `ci` selects `[group.ci]`, and `all` expands to `default` plus every `[group.*]`. **Empty (default) composes the default group only** — not everything. Requires an `ocx` version whose `ocx env` accepts `--group`."
+          "markdownDescription": "Tool groups to compose into the environment, passed to `ocx env`, `ocx pull`, `ocx update` and `ocx upgrade` as `--group`. Each entry selects a group declared in `ocx.toml`: `default` is the implicit `[tools]` table, a name like `ci` selects `[group.ci]`, and `all` expands to `default` plus every `[group.*]`. **Empty (default) composes the default group only** — not everything. Requires an `ocx` version whose `ocx env` accepts `--group`."
         },
         "ocx.extraEnv": {
           "type": "object",

@@ -5,6 +5,7 @@ import { EnvManager } from './environment';
 import {
   buildSubcommandArgs,
   isUnsupportedGroupFlag,
+  isUnsupportedSubcommand,
   runEnv,
   runInit,
   runSubcommand,
@@ -150,6 +151,9 @@ export function activate(context: vscode.ExtensionContext): OcxApi {
     vscode.commands.registerCommand('ocx.init', () => runInitCommand(output, reload, locator)),
     vscode.commands.registerCommand('ocx.lock', () => runProjectCommand('lock', output, reload, locator)),
     vscode.commands.registerCommand('ocx.pull', () => runProjectCommand('pull', output, reload, locator)),
+    vscode.commands.registerCommand('ocx.update', () =>
+      runProjectCommand('update', output, reload, locator),
+    ),
     vscode.commands.registerCommand('ocx.upgrade', () =>
       runProjectCommand('upgrade', output, reload, locator),
     ),
@@ -229,9 +233,10 @@ async function notifyNotFound(executable: string): Promise<void> {
 /**
  * Run a project-lifecycle `ocx` subcommand against the workspace `ocx.toml`,
  * surfacing progress and output. After a subcommand that can change the composed
- * environment (`lock`/`upgrade` re-resolve `ocx.lock`; `pull` materializes
- * tools), trigger a {@link reload} so the injected env reflects the new state.
- * `clean` only removes unreferenced objects, so it needs no reload.
+ * environment (`lock`/`update`/`upgrade` change `ocx.lock`, and `upgrade` also
+ * rewrites `ocx.toml`; `pull` materializes tools), trigger a {@link reload} so
+ * the injected env reflects the new state. `clean` only removes unreferenced
+ * objects, so it needs no reload.
  */
 async function runProjectCommand(
   subcommand: ProjectSubcommand,
@@ -262,10 +267,15 @@ async function runProjectCommand(
 
   if (!result.ok) {
     output.appendLine(`[${subcommand}] failed: ${result.message}`);
+    // `ocx upgrade` only exists on 0.6.5+; older ocx suggests installing a plugin, which misleads.
+    const hint =
+      subcommand === 'upgrade' && isUnsupportedSubcommand(result.message, subcommand)
+        ? ' This `ocx` has no `ocx upgrade` (needs ocx 0.6.5+), so ignore its plugin-install advice; run "OCX: Update Tools" to re-resolve the lock, or update `ocx`.'
+        : '';
     void vscode.window.showErrorMessage(
       result.notFound
         ? executableNotFoundMessage(config.executable)
-        : `OCX: ocx ${subcommand} failed. ${result.message}`,
+        : `OCX: ocx ${subcommand} failed. ${result.message}${hint}`,
     );
     return;
   }

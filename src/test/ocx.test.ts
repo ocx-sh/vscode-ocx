@@ -1,6 +1,6 @@
 import * as assert from 'node:assert';
 
-import { buildEnvArgs, buildSubcommandArgs, isUnsupportedGroupFlag, parseEnvJson } from '../ocx';
+import { buildEnvArgs, buildSubcommandArgs, isUnsupportedGroupFlag, isUnsupportedSubcommand, parseEnvJson } from '../ocx';
 
 suite('buildEnvArgs', () => {
   const TOML = '/work/ocx.toml';
@@ -54,14 +54,14 @@ suite('buildEnvArgs', () => {
 suite('buildSubcommandArgs', () => {
   const TOML = '/work/ocx.toml';
 
-  test('lock/upgrade/clean → --project before the subcommand, no group flags', () => {
-    for (const sub of ['lock', 'upgrade', 'clean'] as const) {
+  test('empty groups → --project before the subcommand, bare subcommand', () => {
+    for (const sub of ['lock', 'pull', 'update', 'upgrade', 'clean'] as const) {
       assert.deepStrictEqual(buildSubcommandArgs(TOML, sub, []), ['--project', TOML, sub]);
     }
   });
 
-  test('non-pull subcommands ignore groups (only pull accepts --group)', () => {
-    for (const sub of ['lock', 'upgrade', 'clean'] as const) {
+  test('lock/clean ignore groups (no --group selector)', () => {
+    for (const sub of ['lock', 'clean'] as const) {
       assert.deepStrictEqual(buildSubcommandArgs(TOML, sub, ['ci', 'lint']), [
         '--project',
         TOML,
@@ -70,22 +70,12 @@ suite('buildSubcommandArgs', () => {
     }
   });
 
-  test('pull with no groups is a bare pull (CLI default pulls everything)', () => {
-    assert.deepStrictEqual(buildSubcommandArgs(TOML, 'pull', []), ['--project', TOML, 'pull']);
-  });
-
-  test('pull appends one --group per entry, in order, never comma-joined', () => {
-    const args = buildSubcommandArgs(TOML, 'pull', ['default', 'ci']);
-    assert.deepStrictEqual(args, [
-      '--project',
-      TOML,
-      'pull',
-      '--group',
-      'default',
-      '--group',
-      'ci',
-    ]);
-    assert.ok(!args.includes('default,ci'));
+  test('pull/update/upgrade append one --group per entry, in order, never comma-joined', () => {
+    for (const sub of ['pull', 'update', 'upgrade'] as const) {
+      const args = buildSubcommandArgs(TOML, sub, ['default', 'ci']);
+      assert.deepStrictEqual(args, ['--project', TOML, sub, '--group', 'default', '--group', 'ci']);
+      assert.ok(!args.includes('default,ci'));
+    }
   });
 });
 
@@ -100,6 +90,31 @@ suite('isUnsupportedGroupFlag', () => {
     assert.ok(!isUnsupportedGroupFlag('ocx.lock not found; run `ocx lock`'));
     assert.ok(!isUnsupportedGroupFlag('unexpected argument --shell found'));
     assert.ok(!isUnsupportedGroupFlag(''));
+  });
+});
+
+suite('isUnsupportedSubcommand', () => {
+  test('matches the real ocx 0.5.8–0.6.4 stderr and the clap wording', () => {
+    assert.ok(
+      isUnsupportedSubcommand(
+        "2026-11-18T09:55:49.674959Z ERROR unknown subcommand 'upgrade'; if `ocx-upgrade` is an official OCX plugin, install it with `ocx --global add ocx.sh/ocx/upgrade`, otherwise put an `ocx-upgrade` binary on your PATH",
+        'upgrade',
+      ),
+    );
+    assert.ok(isUnsupportedSubcommand("error: unrecognized subcommand 'upgrade'", 'upgrade'));
+  });
+
+  test('does not match unrelated failures or a different subcommand', () => {
+    assert.ok(!isUnsupportedSubcommand('registry unreachable', 'upgrade'));
+    assert.ok(!isUnsupportedSubcommand("ERROR unknown subcommand 'frobnicate'", 'upgrade'));
+    // The bare word is not enough — a real `ocx upgrade` failure may mention it.
+    assert.ok(
+      !isUnsupportedSubcommand(
+        "error: unknown subcommand 'frobnicate'; upgrade ocx or install `ocx-upgrade`",
+        'upgrade',
+      ),
+    );
+    assert.ok(!isUnsupportedSubcommand('', 'upgrade'));
   });
 });
 
