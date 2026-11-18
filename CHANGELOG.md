@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-18
+
 ### Fixed
 
 - **Environment loading on `ocx` 0.6.6+** — `ocx env` renamed its JSON keys
@@ -100,7 +102,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project tooling: esbuild bundling, `@vscode/test-cli` integration tests,
   ESLint flat config + Prettier, and GitHub Actions CI/release.
 
-[Unreleased]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/ocx-sh/vscode-ocx/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ocx-sh/vscode-ocx/compare/v0.1.0...v0.1.1
