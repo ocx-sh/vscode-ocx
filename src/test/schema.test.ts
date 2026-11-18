@@ -93,4 +93,61 @@ suite('ocx.toml JSON schema', () => {
     const data = await parseToml('[tools]\ngo-task = "latest"');
     assert.strictEqual(validate(data), false);
   });
+
+  test('accepts the root lazy-mode, lazy-report, activate and pinned keys', async () => {
+    const data = await parseToml(
+      [
+        'lazy-mode = "always"',
+        'lazy-report = "progress"',
+        'activate = "bin"',
+        'pinned = true',
+        '',
+        '[tools]',
+        'go-task = "ocx.sh/go-task/task:latest"',
+      ].join('\n'),
+    );
+    assert.strictEqual(validate(data), true, JSON.stringify(validate.errors));
+  });
+
+  test('accepts a [trust] table with a policy and sigstore settings', async () => {
+    const data = await parseToml(
+      [
+        '[[trust.policy]]',
+        'scope = "ocx.sh/*"',
+        'builder = "ci"',
+        '',
+        '[[trust.policy.signers]]',
+        'kind = "keyless"',
+        'identity = "https://github.com/acme/repo/.github/workflows/release.yml@refs/heads/main"',
+        'oidc_issuer = "https://token.actions.githubusercontent.com"',
+        '',
+        '[trust.sigstore]',
+        'rekor_upload = false',
+      ].join('\n'),
+    );
+    assert.strictEqual(validate(data), true, JSON.stringify(validate.errors));
+  });
+
+  test('accepts a group tool bound with { from = "default" }', async () => {
+    const data = await parseToml(
+      [
+        '[tools]',
+        'x = "ocx.sh/acme/x:1"',
+        '',
+        '[group.ci.tools]',
+        'x = { from = "default" }',
+      ].join('\n'),
+    );
+    assert.strictEqual(validate(data), true, JSON.stringify(validate.errors));
+  });
+
+  test('accepts lazy-mode on a group', async () => {
+    const data = await parseToml('[group.ci]\nlazy-mode = "never"');
+    assert.strictEqual(validate(data), true, JSON.stringify(validate.errors));
+  });
+
+  test('rejects an invalid lazy-mode value', async () => {
+    const data = await parseToml('lazy-mode = "sometimes"');
+    assert.strictEqual(validate(data), false);
+  });
 });
