@@ -103,7 +103,7 @@ suite('isUnsupportedGroupFlag', () => {
   });
 });
 
-suite('parseEnvJson', () => {
+suite('parseEnvJson (ocx <= 0.6.5 shape: entries/type)', () => {
   test('parses path and constant entries in declaration order', () => {
     const entries = parseEnvJson(
       JSON.stringify({
@@ -203,5 +203,75 @@ suite('parseEnvJson', () => {
       }),
     );
     assert.strictEqual(entries.length, 2);
+  });
+});
+
+suite('parseEnvJson (ocx >= 0.6.6 shape: items/kind)', () => {
+  const LEGACY = JSON.stringify({
+    entries: [
+      { key: 'PATH', value: '/x/bin', type: 'path' },
+      { key: 'CFLAGS', value: '-Wall', type: 'list', separator: ' ' },
+    ],
+    binaries: [],
+  });
+  const CURRENT = JSON.stringify({
+    schema_version: 1,
+    items: [
+      { key: 'PATH', value: '/x/bin', kind: 'path' },
+      { key: 'CFLAGS', value: '-Wall', kind: 'list', separator: ' ' },
+    ],
+    binaries: [],
+    entrypoints: [],
+    integrations: [],
+    advisories: [],
+  });
+
+  test('the full 0.6.8 document parses to the same entries as its legacy twin', () => {
+    assert.deepStrictEqual(parseEnvJson(CURRENT), parseEnvJson(LEGACY));
+    assert.deepStrictEqual(parseEnvJson(CURRENT), [
+      { key: 'PATH', value: '/x/bin', type: 'path' },
+      { key: 'CFLAGS', value: '-Wall', type: 'list', separator: ' ' },
+    ]);
+  });
+
+  test('rejects an unknown kind', () => {
+    assert.throws(
+      () => parseEnvJson(JSON.stringify({ items: [{ key: 'X', value: '1', kind: 'plain' }] })),
+      /unsupported entry type "plain"/,
+    );
+  });
+
+  test('rejects items that is not an array', () => {
+    assert.throws(() => parseEnvJson(JSON.stringify({ items: {} })), /"items" is not an array/);
+  });
+
+  test('items wins over entries, so a malformed items is not rescued by entries', () => {
+    assert.throws(
+      () => parseEnvJson(JSON.stringify({ items: {}, entries: [] })),
+      /"items" is not an array/,
+    );
+  });
+
+  test('kind wins over type when an item carries both', () => {
+    assert.deepStrictEqual(
+      parseEnvJson(
+        JSON.stringify({ items: [{ key: 'X', value: '1', kind: 'path', type: 'constant' }] }),
+      ),
+      [{ key: 'X', value: '1', type: 'path' }],
+    );
+  });
+
+  test('rejects a document with neither items nor entries', () => {
+    assert.throws(
+      () => parseEnvJson(JSON.stringify({ schema_version: 1 })),
+      /missing "items" or "entries"/,
+    );
+  });
+
+  test('defaults an omitted list separator', () => {
+    assert.deepStrictEqual(
+      parseEnvJson(JSON.stringify({ items: [{ key: 'X', value: '1', kind: 'list' }] })),
+      [{ key: 'X', value: '1', type: 'list', separator: ' ' }],
+    );
   });
 });

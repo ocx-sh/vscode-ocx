@@ -6,7 +6,7 @@ const execFileAsync = promisify(execFile);
 /**
  * The modifier kinds OCX emits — the serde `snake_case` rendering of
  * `ModifierKind` (`Path` | `Constant` | `List`) from `ocx_lib`. These are the
- * ONLY three supported values; any other `type` is rejected at parse time (see
+ * ONLY three supported values; any other `kind`/`type` is rejected at parse time (see
  * {@link parseEnvJson}). The wire format is documented to allow future modifier
  * kinds, so rejection — not silent passthrough — is the deliberate contract: a
  * partially-understood environment is worse than none.
@@ -21,7 +21,11 @@ const ENV_ENTRY_TYPES: ReadonlySet<string> = new Set<EnvEntryType>(['path', 'con
  */
 export const LIST_DEFAULT_SEPARATOR = ' ';
 
-/** A single composed-environment entry as emitted by `ocx --format json env`. */
+/**
+ * A single composed-environment entry as emitted by `ocx --format json env`.
+ * ocx <= 0.6.5 names the modifier field `type`, ocx >= 0.6.6 names it `kind`;
+ * {@link parseEnvJson} accepts both and normalizes to `type` here.
+ */
 export interface EnvEntry {
   /** Variable name — any key is supported (e.g. `PATH`, `JAVA_HOME`). */
   readonly key: string;
@@ -240,7 +244,12 @@ function errorMessage(e: unknown): string {
  * Parse and validate `ocx --format json env` stdout into `EnvEntry[]`.
  *
  * Pure and `vscode`-free, so it is unit-testable. Throws on any deviation from
- * the documented wire format, including an unsupported entry `type`.
+ * the documented wire format, including an unsupported modifier kind.
+ *
+ * Two wire shapes are accepted because users run mixed ocx versions: <= 0.6.5
+ * emits `{entries: [{key, value, type, separator?}]}`; >= 0.6.6 renamed those
+ * to `{schema_version, items: [{key, value, kind, separator?}], ...}`.
+ * `schema_version` and the sibling arrays (`binaries`, ...) are ignored.
  */
 export function parseEnvJson(stdout: string): EnvEntry[] {
   return parseEntries(JSON.parse(stdout));
@@ -248,26 +257,37 @@ export function parseEnvJson(stdout: string): EnvEntry[] {
 
 /** Validate and narrow the parsed JSON into `EnvEntry[]` at the trust boundary. */
 function parseEntries(parsed: unknown): EnvEntry[] {
-  if (parsed === null || typeof parsed !== 'object' || !('entries' in parsed)) {
-    throw new Error('ocx env: unexpected output (missing "entries")');
+  if (parsed === null || typeof parsed !== 'object') {
+    throw new Error('ocx env: unexpected output (missing "items" or "entries")');
   }
-  const { entries } = parsed;
-  if (!Array.isArray(entries)) {
-    throw new Error('ocx env: "entries" is not an array');
+  const [listKey, list] =
+    'items' in parsed
+      ? (['items', parsed.items] as const)
+      : 'entries' in parsed
+        ? (['entries', parsed.entries] as const)
+        : ([undefined, undefined] as const);
+  if (listKey === undefined) {
+    throw new Error('ocx env: unexpected output (missing "items" or "entries")');
   }
-  return entries.map(toEntry);
+  if (!Array.isArray(list)) {
+    throw new Error(`ocx env: "${listKey}" is not an array`);
+  }
+  return list.map(toEntry);
 }
 
 function toEntry(item: unknown): EnvEntry {
   if (item === null || typeof item !== 'object') {
     throw new Error('ocx env: malformed entry (not an object)');
   }
-  if (!('key' in item) || !('value' in item) || !('type' in item)) {
-    throw new Error('ocx env: entry missing key/value/type');
+  // `kind` (ocx >= 0.6.6) wins over the legacy `type` (<= 0.6.5).
+  const hasKind = 'kind' in item;
+  if (!('key' in item) || !('value' in item) || !(hasKind || 'type' in item)) {
+    throw new Error('ocx env: entry missing key/value/kind');
   }
-  const { key, value, type } = item;
+  const { key, value } = item;
+  const type = hasKind ? item.kind : 'type' in item ? item.type : undefined;
   if (typeof key !== 'string' || typeof value !== 'string' || typeof type !== 'string') {
-    throw new Error('ocx env: entry key/value/type must be strings');
+    throw new Error('ocx env: entry key/value/kind must be strings');
   }
   if (!isEnvEntryType(type)) {
     throw new Error(

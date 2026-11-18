@@ -15,20 +15,34 @@ const STUB_BAD_KEY = 'OCX_BAD_VAR';
 
 // Fixed env emitted by the stub, in the real `ocx --format json env` shape —
 // one entry per modifier kind, `separator` present on the list one only.
+// ocx >= 0.6.6 shape (`items`/`kind`); STUB_LEGACY_JSON is the <= 0.6.5 twin.
 const STUB_JSON = JSON.stringify({
+  schema_version: 1,
+  items: [
+    { key: 'PATH', value: STUB_PATH_DIR, kind: 'path' },
+    { key: STUB_SCALAR, value: 'scalar-value', kind: 'constant' },
+    { key: STUB_LIST_KEY, value: 'gctrace=1', kind: 'list', separator: ',' },
+  ],
+  binaries: [],
+  entrypoints: [],
+  integrations: [],
+  advisories: [],
+});
+
+const STUB_LEGACY_JSON = JSON.stringify({
   entries: [
     { key: 'PATH', value: STUB_PATH_DIR, type: 'path' },
     { key: STUB_SCALAR, value: 'scalar-value', type: 'constant' },
-    { key: STUB_LIST_KEY, value: 'gctrace=1', type: 'list', separator: ',' },
   ],
 });
 
 // An entry with an unsupported `type` precedes a valid one: parsing must reject
 // the whole batch so nothing — not even the trailing path entry — is applied.
 const STUB_BAD_JSON = JSON.stringify({
-  entries: [
-    { key: STUB_BAD_KEY, value: '1', type: 'future_kind' },
-    { key: 'PATH', value: STUB_BAD_DIR, type: 'path' },
+  schema_version: 1,
+  items: [
+    { key: STUB_BAD_KEY, value: '1', kind: 'future_kind' },
+    { key: 'PATH', value: STUB_BAD_DIR, kind: 'path' },
   ],
 });
 
@@ -244,6 +258,23 @@ suite('OCX extension', () => {
     );
 
     await setExecutable(stubPath);
+  });
+
+  test('reload accepts the ocx <= 0.6.5 env shape (entries/type) end to end', async function () {
+    if (isWindows) {
+      this.skip();
+    }
+    api.reset();
+    const legacyStub = writeStub(`ocx-stub-legacy-${process.pid}.sh`, STUB_LEGACY_JSON);
+    await setExecutable(legacyStub);
+    try {
+      await api.reload();
+      assert.ok(process.env.PATH?.includes(STUB_PATH_DIR), 'PATH should contain the stub dir');
+      assert.strictEqual(process.env[STUB_SCALAR], 'scalar-value');
+    } finally {
+      api.reset();
+      await setExecutable(stubPath);
+    }
   });
 
   test('ocx.groups reach the ocx env invocation (normalized, after env)', async function () {
